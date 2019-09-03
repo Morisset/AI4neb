@@ -8,7 +8,7 @@ setup(
     version="0.1.2",
     author="Christophe Morisset",
     author_email="Chris.Morisset@gmail.com",
-    description="A package to developp AI tolls for Nebular studies",
+    description="A package to developp AI tools for Nebular studies",
     long_description=readme,
     long_description_content_type="text/markdown",
     url="https://github.com/taller-mexicano-de-nebulosas-ionizadas/AI",
