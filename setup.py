@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 with open("README.md", "r") as readme_file:
     readme = readme_file.read()
-from .tmniai.version import __version__
+from tmniai.version import __version__
 
 setup(
     name="tmniai",
