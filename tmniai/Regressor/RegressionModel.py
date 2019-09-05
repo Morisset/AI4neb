@@ -42,7 +42,7 @@ except:
             TF_OK = True
         except:
             TF_OK = False
-version = "0.15"
+RM_version = "0.15"
     
 #%%
 class manage_RM(object):
@@ -50,6 +50,7 @@ class manage_RM(object):
     Manage Regression Model from SciKit learn and Tensorflow via Keras.
     """
     TF_OK = TF_OK
+    
     def __init__(self, RM_type = 'ANN',
                  X_train=None, y_train=None, 
                  X_test=None, y_test=None,
@@ -86,11 +87,11 @@ class manage_RM(object):
         """
         if clear_session:
             K.clear_session()
-        self.version = version
+        self.RM_version = RM_version
         self.verbose = verbose
         self.random_seed = random_seed
         if self.verbose:
-            print('Instantiation. V {}'.format(self.version))
+            print('Instantiation. V {}'.format(self.RM_version))
         self.RM_type = RM_type
         self.scaling_y = scaling_y
         self.use_RobustScaler = use_RobustScaler 
@@ -128,6 +129,9 @@ class manage_RM(object):
             self._init_dims(train=True, test=True)
         if scaling:
             self.scale_sets(use_log=use_log)
+        else:
+            self.X_train_unscaled = self.X_train
+            self.X_test_unscaled = self.X_test
         self.RMs = None
         self.trained = False
         self._multi_predic = True
@@ -210,7 +214,7 @@ class manage_RM(object):
             hidden_layer_sizes = get_kwargs('hidden_layer_sizes', (10,10))
             random_state = get_kwargs('random_state', None)
             dropout = get_kwargs('dropout', None)
-            tf.set_random_seed(random_state)
+            tf.random.set_random_seed(random_state)
             model = Sequential()
             model.add(Dense(hidden_layer_sizes[0], 
                             input_dim=self.N_in, 
@@ -397,6 +401,7 @@ class manage_RM(object):
         and only finite data is kept.
         The scaler is applied to self.X_train and self.X_test if they exist.
         """
+        
         if (not self.train_scaled) or force:
             self.X_train_unscaled = self._copy_None(self.X_train)
             if use_log:
@@ -420,7 +425,7 @@ class manage_RM(object):
             
             if self.verbose:
                 print('{}{}Train data scaled.'.format(log_str,pca_str))
-                
+        
         if (not self.test_scaled) or force:
             if self.X_test is not None:
                 self.X_test_unscaled = self._copy_None(self.X_test)
@@ -586,7 +591,7 @@ class manage_RM(object):
     def save_RM(self, filename='RM_jl.sav', save_train=False, save_test=False):
         """
         Save the following values:
-        self.RM_type, self.version, self.RMs, 
+        self.RM_type, self.RM_version, self.RMs, 
         self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
         self.N_in, self.N_out, self.N_in_test, self.N_out_test,
         self.N_test, self.N_test_y, self.N_train, self.N_train_y,
@@ -604,7 +609,7 @@ class manage_RM(object):
         else:
             X_test, y_test = None, None
             
-        joblib.dump((self.RM_type, self.version, self.RMs, 
+        joblib.dump((self.RM_type, self.RM_version, self.RMs, 
                      self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
                      self.N_in, self.N_out, self.N_in_test, self.N_out_test,
                      self.N_test, self.N_test_y, self.N_train, self.N_train_y,
@@ -636,11 +641,11 @@ class manage_RM(object):
         """
         
         RM_tuple = joblib.load(filename)
-        if self.version != RM_tuple[1]:
+        if self.RM_version != RM_tuple[1]:
             print('WARNING: version loaded from {} is {}. Version from RM class is {}.'.format(filename, 
-                                                                  RM_tuple[1],self.version))
+                                                                  RM_tuple[1],self.RM_version))
         if RM_tuple[1] in ("0.15"):
-            (self.RM_type, self.version, self.RMs, 
+            (self.RM_type, self.RM_version, self.RMs, 
                  self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
                  self.N_in, self.N_out, self.N_in_test, self.N_out_test,
                  self.N_test, self.N_test_y, self.N_train, self.N_train_y,
@@ -648,36 +653,36 @@ class manage_RM(object):
                  self.noise, self.X_train, self.y_train, self.X_test, self.y_test,
                  self.train_scaled, self.test_scaled, self.verbose) = RM_tuple
         elif RM_tuple[1] in ("0.14"):
-            (self.RM_type, self.version, self.RMs, 
+            (self.RM_type, self.RM_version, self.RMs, 
                  self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
                  self.N_in, self.N_out, self.N_in_test, self.N_out_test,
                  self.N_test, self.N_test_y, self.N_train, self.N_train_y,
                  self.pca_N, self.pca, self.training_time, self.random_seed, self.noise) = RM_tuple
         elif RM_tuple[1] in ("0.12", "0.13"):
-            (self.RM_type, self.version, self.RMs, 
+            (self.RM_type, self.RM_version, self.RMs, 
                  self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
                  self.N_in, self.N_out, self.N_in_test, self.N_out_test,
                  self.N_test, self.N_test_y, self.N_train, self.N_train_y,
                  self.pca_N, self.pca, self.training_time, self.random_seed) = RM_tuple
         elif RM_tuple[1] == "0.11":
-            (self.RM_type, self.version, self.RMs, 
+            (self.RM_type, self.RM_version, self.RMs, 
                  self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
                  self.N_in, self.N_out, self.N_in_test, self.N_out_test,
                  self.N_test, self.N_test_y, self.N_train, self.N_train_y,
                  self.pca_N, self.pca, self.training_time) = RM_tuple
         elif RM_tuple[1] == "0.10":
-            (self.RM_type, self.version, self.RMs, 
+            (self.RM_type, self.RM_version, self.RMs, 
                  self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
                  self.N_in, self.N_out, self.N_in_test, self.N_out_test,
                  self.N_test, self.N_test_y, self.N_train, self.N_train_y,
                  self.pca_N, self.pca) = RM_tuple
         elif "{:.1f}".format(RM_tuple[1]) == "0.9":
-            (self.RM_type, self.version, self.RMs, 
+            (self.RM_type, self.RM_version, self.RMs, 
                  self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
                  self.N_in, self.N_out, self.N_in_test, self.N_out_test,
                  self.N_test, self.N_test_y, self.N_train, self.N_train_y) = RM_tuple
         elif "{:.1f}".format(RM_tuple[1]) == "0.8":
-            (self.RM_type, self.version, self.RMs, 
+            (self.RM_type, self.RM_version, self.RMs, 
                  self.scaler, self.train_score, self._multi_predic,
                  self.N_in, self.N_out, self.N_in_test, self.N_out_test,
                  self.N_test, self.N_test_y, self.N_train, self.N_train_y) = RM_tuple
