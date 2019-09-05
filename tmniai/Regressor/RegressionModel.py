@@ -127,6 +127,9 @@ class manage_RM(object):
         if self.N_y_bins is not None or self.y_vects is not None:
             self.discretize()
             self._init_dims(train=True, test=True)
+        else:
+            self.y_train_ori = self.y_train
+            self.y_test_ori = self.y_test            
         if scaling:
             self.scale_sets(use_log=use_log)
         else:
