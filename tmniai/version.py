@@ -1,3 +1,3 @@
 # -*- coding: utf-8 -*-
 
-version="0.1.3b2"
+__version__="0.1.3b2"
