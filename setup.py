@@ -5,7 +5,7 @@ with open("README.md", "r") as readme_file:
 
 setup(
     name="tmniai",
-    version="0.1.2",
+    version="0.1.3b",
     author="Christophe Morisset",
     author_email="Chris.Morisset@gmail.com",
     description="A package to developp AI tools for Nebular studies",
