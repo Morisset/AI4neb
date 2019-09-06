@@ -9,6 +9,7 @@ Created on Tue Dec 18 09:03:31 2018
 
 import numpy as np
 import time
+import random
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.externals import joblib
@@ -24,6 +25,7 @@ try:
     from keras.models import Sequential
     from keras.layers import Dense, Dropout
     from keras import backend as K
+    from keras import initializers
     TF_OK = True
 except:
     try:
@@ -31,6 +33,7 @@ except:
         from tensorflow.python.keras.models import Sequential
         from tensorflow.python.keras.layers import Dense, Dropout
         from tensorflow.python.keras import backend as K
+        from tensorflow.python.keras import initializers
         #from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
         TF_OK = True
     except:
@@ -39,11 +42,11 @@ except:
             from tensorflow.keras.models import Sequential
             from tensorflow.keras.layers import Dense, Dropout
             from tensorflow.keras import backend as K
+            from tensorflow.keras import initializers
             TF_OK = True
         except:
             TF_OK = False
 RM_version = "0.15"
-    
 #%%
 class manage_RM(object):
     """
@@ -90,6 +93,8 @@ class manage_RM(object):
         self.RM_version = RM_version
         self.verbose = verbose
         self.random_seed = random_seed
+        np.random.seed(self.random_seed)
+        random.seed(self.random_seed)
         if self.verbose:
             print('Instantiation. V {}'.format(self.RM_version))
         self.RM_type = RM_type
@@ -182,15 +187,15 @@ class manage_RM(object):
         self.RMs = []
         self.train_params = {}
         if self.RM_type in ('ANN', 'ANN_Dis'):
-            self.RMs = [MLPRegressor(**kwargs)]
+            self.RMs = [MLPRegressor(random_state=self.random_seed, **kwargs)]
             self._multi_predic = True
         elif self.RM_type == 'SVM':
             for i in range(self.N_out):
-                self.RMs.append(SVR(**kwargs))
+                self.RMs.append(SVR(random_state=self.random_seed,**kwargs))
             self._multi_predic = False
         elif self.RM_type == 'NuSVM':
             for i in range(self.N_out):
-                self.RMs.append(NuSVR(**kwargs))
+                self.RMs.append(NuSVR(random_state=self.random_seed,**kwargs))
             self._multi_predic = False
         elif self.RM_type == 'BR':
             for i in range(self.N_out):
@@ -198,7 +203,7 @@ class manage_RM(object):
             self._multi_predic = False
         elif self.RM_type == 'AB':
             for i in range(self.N_out):
-                self.RMs.append(AdaBoostRegressor(**kwargs))
+                self.RMs.append(AdaBoostRegressor(random_state=self.random_seed,**kwargs))
             self._multi_predic = False
         elif "Keras" in self.RM_type:
             if not TF_OK:
@@ -209,28 +214,38 @@ class manage_RM(object):
                 else:
                     return default
             activation = get_kwargs('activation', 'relu')
-            kernel_initializer = get_kwargs('kernel_initializer', 'normal')
+            kernel_initializer = get_kwargs('kernel_initializer', 
+                                            initializers.glorot_uniform(seed=self.random_seed))
+            if self.random_seed is None:
+                bias_initializer = 'zeroes'
+            else:
+                bias_initializer = initializers.Constant(0.1)
             optimizer = get_kwargs('optimizer', get_kwargs('solver', 'adam'))
             epochs = get_kwargs('epochs', 1)
             batch_size = get_kwargs('batch_size', None)
             validation_split = get_kwargs('validation_split', 0.0)
             hidden_layer_sizes = get_kwargs('hidden_layer_sizes', (10,10))
-            random_state = get_kwargs('random_state', None)
+            random_state = get_kwargs('random_state', self.random_seed)
             dropout = get_kwargs('dropout', None)
             tf.random.set_random_seed(random_state)
             model = Sequential()
             model.add(Dense(hidden_layer_sizes[0], 
                             input_dim=self.N_in, 
-                            kernel_initializer=kernel_initializer, 
+                            kernel_initializer=kernel_initializer,
+                            bias_initializer=bias_initializer,
                             activation=activation))
             for hidden_layer_size in hidden_layer_sizes[1:]:
                 model.add(Dense(hidden_layer_size, 
-                                activation=activation))
+                                activation=activation, 
+                                kernel_initializer=kernel_initializer,
+                                bias_initializer=bias_initializer))
                 if dropout is not None:
-                    model.add(Dropout(dropout))
+                    model.add(Dropout(dropout, seed=random_state))
             if self.RM_type == 'Keras':
                 model.add(Dense(self.N_out, 
-                                activation='linear'))
+                                activation='linear', 
+                                kernel_initializer=kernel_initializer,
+                                bias_initializer=bias_initializer))
                 metrics = get_kwargs('metrics', ['mse','mae'])
                 model.compile(loss='mse', 
                               optimizer=optimizer, 
@@ -243,7 +258,9 @@ class manage_RM(object):
                 self._multi_predic = True
             elif self.RM_type == 'KerasDis':
                 model.add(Dense(self.N_out, 
-                                activation='softmax'))
+                                activation='softmax', 
+                                kernel_initializer=kernel_initializer,
+                                bias_initializer=bias_initializer))
                 metrics = get_kwargs('metrics', ['accuracy'])
                 model.compile(loss='categorical_crossentropy', 
                               optimizer=optimizer, 
