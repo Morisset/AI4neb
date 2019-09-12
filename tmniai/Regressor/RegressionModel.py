@@ -22,27 +22,29 @@ from sklearn.decomposition import PCA
 # Keras
 try:
     import tensorflow as tf
-    from keras.models import Sequential
+    from keras.models import Sequential, load_model
     from keras.layers import Dense, Dropout
+    from keras.wrappers.scikit_learn import KerasRegressor
     from keras import backend as K
     from keras import initializers
     TF_OK = True
 except:
     try:
         import tensorflow as tf
-        from tensorflow.python.keras.models import Sequential
+        from tensorflow.python.keras.models import Sequential, load_model
         from tensorflow.python.keras.layers import Dense, Dropout
         from tensorflow.python.keras import backend as K
         from tensorflow.python.keras import initializers
-        #from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
+        from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
         TF_OK = True
     except:
         try:
             import tensorflow as tf
-            from tensorflow.keras.models import Sequential
+            from tensorflow.keras.models import Sequential, load_model
             from tensorflow.keras.layers import Dense, Dropout
             from tensorflow.keras import backend as K
             from tensorflow.keras import initializers
+            from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
             TF_OK = True
         except:
             TF_OK = False
@@ -89,7 +91,10 @@ class manage_RM(object):
                 
         """
         if clear_session:
-            K.clear_session()
+            try:
+                K.clear_session()
+            except:
+                print('Session not cleared')
         self.RM_version = RM_version
         self.verbose = verbose
         self.random_seed = random_seed
@@ -191,11 +196,11 @@ class manage_RM(object):
             self._multi_predic = True
         elif self.RM_type == 'SVM':
             for i in range(self.N_out):
-                self.RMs.append(SVR(random_state=self.random_seed,**kwargs))
+                self.RMs.append(SVR(**kwargs))
             self._multi_predic = False
         elif self.RM_type == 'NuSVM':
             for i in range(self.N_out):
-                self.RMs.append(NuSVR(random_state=self.random_seed,**kwargs))
+                self.RMs.append(NuSVR(**kwargs))
             self._multi_predic = False
         elif self.RM_type == 'BR':
             for i in range(self.N_out):
@@ -205,7 +210,7 @@ class manage_RM(object):
             for i in range(self.N_out):
                 self.RMs.append(AdaBoostRegressor(random_state=self.random_seed,**kwargs))
             self._multi_predic = False
-        elif "Keras" in self.RM_type:
+        elif self.RM_type in ("Keras", "KerasDis"):
             if not TF_OK:
                 raise ValueError('Tensorflow not installed, Keras RM_type not available')
             def get_kwargs(kw, default):
@@ -217,7 +222,7 @@ class manage_RM(object):
             kernel_initializer = get_kwargs('kernel_initializer', 
                                             initializers.glorot_uniform(seed=self.random_seed))
             if self.random_seed is None:
-                bias_initializer = 'zeroes'
+                bias_initializer = 'zeros'
             else:
                 bias_initializer = initializers.Constant(0.1)
             optimizer = get_kwargs('optimizer', get_kwargs('solver', 'adam'))
@@ -273,6 +278,61 @@ class manage_RM(object):
                                  'verbose': False, 
                                  'validation_split': validation_split}
             self._multi_predic = True
+        elif self.RM_type == 'KANN':
+            def get_kwargs(kw, default):
+                if kw in kwargs:
+                    return kwargs[kw]
+                else:
+                    return default
+            activation = get_kwargs('activation', 'relu')
+            kernel_initializer = get_kwargs('kernel_initializer', 
+                                            initializers.glorot_uniform(seed=self.random_seed))
+            if self.random_seed is None:
+                bias_initializer = 'zeroes'
+            else:
+                bias_initializer = initializers.Constant(0.1)
+            optimizer = get_kwargs('optimizer', get_kwargs('solver', 'adam'))
+            epochs = get_kwargs('epochs', 1)
+            batch_size = get_kwargs('batch_size', None)
+            validation_split = get_kwargs('validation_split', 0.0)
+            hidden_layer_sizes = get_kwargs('hidden_layer_sizes', (10,10))
+            random_state = get_kwargs('random_state', self.random_seed)
+            dropout = get_kwargs('dropout', None)
+            tf.random.set_random_seed(random_state)
+            
+            def create_model(hidden_layer_sizes, N_in, activation, dropout, random_state,
+                             N_out):
+                model = Sequential()
+                model.add(Dense(hidden_layer_sizes[0], 
+                                input_dim=N_in, 
+                                activation=activation))
+                for hidden_layer_size in hidden_layer_sizes[1:]:
+                    model.add(Dense(hidden_layer_size, 
+                                    activation=activation,))
+                    if dropout is not None:
+                        model.add(Dropout(dropout, seed=random_state))
+                model.add(Dense(N_out, 
+                                activation='linear'))
+                metrics = ['mse','mae']
+                model.compile(loss='mse', 
+                              optimizer=optimizer, 
+                              metrics=metrics)
+                return model
+                
+            model = KerasRegressor(create_model, 
+                                   hidden_layer_sizes = hidden_layer_sizes, 
+                                   N_in = self.N_in,
+                                   activation=activation, dropout=dropout, 
+                                   random_state=random_state,
+                                   N_out=self.N_out)
+            #if self.verbose:
+            #    model.summary()
+            self.RMs = [model]
+            self.train_params = {'epochs': epochs, 
+                                 'batch_size': batch_size, 
+                                 'verbose': False, 
+                                 'validation_split': validation_split}
+            self._multi_predic = False # TBC ***
         else:
             raise ValueError('Unkown Regression method {}'.format(self.RM_type))
         if self.verbose:
@@ -618,6 +678,12 @@ class manage_RM(object):
         self.pca_N, self.pca. self.training_time
         """
         
+        """
+        self.RMs[0].save("model.h5")
+        RM = load_model("model.h5")
+
+        """
+        
         if not self.trained:
             raise Exception('Regression Model not trained')
         if save_train:
@@ -710,6 +776,8 @@ class manage_RM(object):
         if self.verbose:
             print('RM loaded from {}'.format(filename))
 
+#%%
+
 def test(func = 'sins'):
     n_samples=200
     if func == 'sins':
@@ -744,8 +812,9 @@ def test(func = 'sins'):
         print('-----')
         print
         RM1 = manage_RM(X_train=X1, y_train=y1, split_ratio=split_ratio, verbose=verbose, 
-                        N_y_bins=N_y_bins, y_vects=y_vects)
-        RM1.init_RM(max_iter=200000, tol=0.00001, solver='lbfgs', activation='tanh',hidden_layer_sizes=(10))
+                        N_y_bins=N_y_bins, y_vects=y_vects, RM_type='ANN')
+        RM1.init_RM(max_iter=200000, tol=0.00001, solver='lbfgs', activation='tanh',
+                    hidden_layer_sizes=(10))
         RM1.train_RM()
         RM1.predict(scoring=scoring, reduce_by=reduce_by)
         print(RM1.N_train, RM1.N_in, RM1.N_train_y, RM1.N_out)
@@ -798,6 +867,25 @@ def test(func = 'sins'):
         
     
     return RM1, RM2, RM3, RM4
+#%%
+def test1():
+    n_samples=10000
+    y = np.random.uniform(-10, 10, n_samples)
+    X = y**2
+    solver = 'adam'#'lbfgs'
+    activation = 'tanh'
+    noise = 0.1
+    X_test = np.linspace(0,100,1000)
+    hidden_layer_sizes=(50,)
+    
+    RM1 = manage_RM(X_train=X, y_train=y, verbose=True, noise=noise, scaling=True,
+                    RM_type='Keras')
+    RM1.init_RM(max_iter=200000, tol=0.0000001, solver=solver, activation=activation,
+                hidden_layer_sizes=hidden_layer_sizes)
+    RM1.train_RM()
+    RM1.set_test(X_test, scaleit=True)
+    RM1.predict(scoring=False)
+    return RM1
 #%%
 def test_x2():
     import matplotlib.pyplot as plt
