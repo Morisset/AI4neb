@@ -779,8 +779,5 @@ class manage_RM(object):
 #%%
 if __name__ == "__main__":
     pass
-    #RM11, RM12, RM13, RM14 = test(func='x24')
-    #RM = test_x2_K()
-    #RM1, RM2, RM3 = test_x2()
     
     
