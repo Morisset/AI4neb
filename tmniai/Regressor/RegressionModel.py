@@ -90,13 +90,14 @@ class manage_RM(object):
             min_discret [0] and max_discret [1]: range values for the discretization vectors
                 
         """
+        self.verbose = verbose
         if clear_session:
             try:
                 K.clear_session()
             except:
-                print('Session not cleared')
+                if self.verbose:
+                    print('Session not cleared')
         self.RM_version = RM_version
-        self.verbose = verbose
         self.random_seed = random_seed
         np.random.seed(self.random_seed)
         random.seed(self.random_seed)
@@ -539,7 +540,8 @@ class manage_RM(object):
         """
         start = time.time()
         if not self.train_scaled and self.verbose:
-            print('WARNING: training data not scaled')
+            if self.verbose:
+                print('WARNING: training data not scaled')
         self.train_score = []
         if self.N_train != self.N_train_y:
             raise Exception('N_train {} != N_train_y {}'.format(self.N_train,
@@ -561,7 +563,7 @@ class manage_RM(object):
                     iter_str = ', with {} iterations.'.format(RM.n_iter_)
                 except:
                     iter_str = '.'
-            print('RM trained{} Score = {:.3f}'.format(iter_str, train_score))
+                print('RM trained{} Score = {:.3f}'.format(iter_str, train_score))
         else:
             if self.y_train.ndim == 1:
                 y_trains = (self.y_train,)
@@ -580,7 +582,7 @@ class manage_RM(object):
                         iter_str = ', with {} iterations.'.format(RM.n_iter_)
                     except:
                         iter_str = '.'
-                print('RM trained{} Score = {:.3f}'.format(iter_str, train_score))
+                    print('RM trained{} Score = {:.3f}'.format(iter_str, train_score))
 
         self.trained = True
         end = time.time()
@@ -607,7 +609,7 @@ class manage_RM(object):
             raise Exception('WARNING: Regression Model not set up')
         if not self.trained:
             raise Exception('WARNING: Regression Model not trained')
-        if not self.test_scaled:
+        if not self.test_scaled and self.verbose:
             print('WARNING: test data not scaled')
         if self._multi_predic:
             self.pred = self.RMs[0].predict(self.X_test)
@@ -727,7 +729,7 @@ class manage_RM(object):
         """
         
         RM_tuple = joblib.load(filename)
-        if self.RM_version != RM_tuple[1]:
+        if self.RM_version != RM_tuple[1] and self.verbose:
             print('WARNING: version loaded from {} is {}. Version from RM class is {}.'.format(filename, 
                                                                   RM_tuple[1],self.RM_version))
         if RM_tuple[1] in ("0.15"):
