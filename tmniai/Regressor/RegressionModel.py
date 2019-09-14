@@ -681,6 +681,7 @@ class manage_RM(object):
         """
         
         """
+        ToDo for Keras:
         self.RMs[0].save("model.h5")
         RM = load_model("model.h5")
 
