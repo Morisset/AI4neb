@@ -551,9 +551,15 @@ class manage_RM(object):
                   self.N_out, self.N_train_y))
         if self._multi_predic:
             RM = self.RMs[0]
-            RM.fit(self.X_train, self.y_train, **self.train_params)
+            if self.y_train.ndim == 1:
+                y_train = np.ravel(self.y_train)
+            elif self.y_train.ndim == 2 and self.y_train.shape[1] == 1:
+                y_train = np.ravel(self.y_train)
+            else:
+                y_train = self.y_train
+            RM.fit(self.X_train, y_train, **self.train_params)
             try:
-                train_score = RM.score(self.X_train, self.y_train)
+                train_score = RM.score(self.X_train, y_train)
             except:
                 train_score = np.nan
             self.train_score = [train_score]
@@ -567,6 +573,8 @@ class manage_RM(object):
         else:
             if self.y_train.ndim == 1:
                 y_trains = (self.y_train,)
+            elif self.y_train.ndim == 2 and self.y_train.shape[1] == 1:
+                y_trains = np.ravel(self.y_train)
             else:
                 y_trains = self.y_train.T
             for RM, y_train in zip(self.RMs, y_trains):
