@@ -1,0 +1,35 @@
+<style>
+body {
+  font-size: 1.5em !important; /* currently ems cause chrome bug misinterpreting rems on body element */
+  line-height: 1.6 !important;
+  font-weight: 400 !important;
+  font-family: "Raleway", "HelveticaNeue", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  color: #222 !important; }
+h1, h2, h3, h4, h5, h6 {
+  color: #333 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0rem !important;
+  font-weight: 300 !important; }
+h1 { font-size: 4.0rem !important; line-height: 1.2 !important;  letter-spacing: -.1rem !important;text-align: center;margin-bottom: 2rem !important;}
+h2 { font-size: 1.5rem !important; line-height: 1.6 !important;  letter-spacing: 0 !important; }
+h3 { font-size: 1.2rem !important; line-height: 1.7 !important;  letter-spacing: 0 !important; }
+h4 { font-size: 1.2rem !important; line-height: 1.7 !important;  letter-spacing: 0 !important; }
+h4 {background-color: #fcf2f2; border-color: #dFb5b4; border-left: 5px solid #dfb5b4; padding: 0.5em;}
+.warn { color: red; }
+p {margin-top: 0 !important; } 
+a {color: #1EAEDB !important; }
+a:hover {
+  color: #0FA0CE !important; }  
+code {
+  padding: .2rem .5rem !important;
+  margin: 0 .2rem !important;
+  font-size: 90% !important;
+  white-space: nowrap !important;
+  background: #F1F1F1 !important;
+  border: 1px solid #E1E1E1 !important;
+  border-radius: 4px !important; }
+pre > code {
+  display: block !important;
+  padding: 1rem 1.5rem !important;
+  white-space: pre !important; }
+</style>
