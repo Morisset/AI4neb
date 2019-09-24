@@ -2,10 +2,10 @@ from setuptools import setup, find_packages
 
 with open("README.md", "r") as readme_file:
     readme = readme_file.read()
-from tmniai.version import __version__
+from mwinai.version import __version__
 
 setup(
-    name="tmniai",
+    name="mwinai",
     version=__version__,
     author="Christophe Morisset",
     author_email="Chris.Morisset@gmail.com",

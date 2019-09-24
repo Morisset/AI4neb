@@ -6,7 +6,7 @@ Created on Thu Sep 12 16:01:37 2019
 @author: morisset
 """
 import numpy as np
-from tmniai import manage_RM
+from mwinai import manage_RM
 #%%
 
 def test(func = 'sins'):
