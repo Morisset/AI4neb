@@ -56,7 +56,7 @@ class manage_RM(object):
     """
     TF_OK = TF_OK
     
-    def __init__(self, RM_type = 'ANN',
+    def __init__(self, RM_type = 'SK_ANN',
                  X_train=None, y_train=None, 
                  X_test=None, y_test=None,
                  scaling=False, 
@@ -192,26 +192,26 @@ class manage_RM(object):
         """
         self.RMs = []
         self.train_params = {}
-        if self.RM_type in ('ANN', 'ANN_Dis'):
+        if self.RM_type in ('SK_ANN', 'SK_ANN_Dis'):
             self.RMs = [MLPRegressor(random_state=self.random_seed, **kwargs)]
             self._multi_predic = True
-        elif self.RM_type == 'SVM':
+        elif self.RM_type == 'SK_SVM':
             for i in range(self.N_out):
                 self.RMs.append(SVR(**kwargs))
             self._multi_predic = False
-        elif self.RM_type == 'NuSVM':
+        elif self.RM_type == 'SK_NuSVM':
             for i in range(self.N_out):
                 self.RMs.append(NuSVR(**kwargs))
             self._multi_predic = False
-        elif self.RM_type == 'BR':
+        elif self.RM_type == 'SK_BR':
             for i in range(self.N_out):
                 self.RMs.append(BayesianRidge(**kwargs))
             self._multi_predic = False
-        elif self.RM_type == 'AB':
+        elif self.RM_type == 'SK_AB':
             for i in range(self.N_out):
                 self.RMs.append(AdaBoostRegressor(random_state=self.random_seed,**kwargs))
             self._multi_predic = False
-        elif self.RM_type in ("Keras", "KerasDis"):
+        elif self.RM_type in ("K_ANN", "K_ANN_Dis"):
             if not TF_OK:
                 raise ValueError('Tensorflow not installed, Keras RM_type not available')
             def get_kwargs(kw, default):
@@ -233,7 +233,7 @@ class manage_RM(object):
             hidden_layer_sizes = get_kwargs('hidden_layer_sizes', (10,10))
             random_state = get_kwargs('random_state', self.random_seed)
             dropout = get_kwargs('dropout', None)
-            tf.random.set_random_seed(random_state)
+            tf.compat.v1.random.set_random_seed(random_state)
             model = Sequential()
             model.add(Dense(hidden_layer_sizes[0], 
                             input_dim=self.N_in, 
@@ -247,7 +247,7 @@ class manage_RM(object):
                                 bias_initializer=bias_initializer))
                 if dropout is not None:
                     model.add(Dropout(dropout, seed=random_state))
-            if self.RM_type == 'Keras':
+            if self.RM_type == 'K_ANN':
                 model.add(Dense(self.N_out, 
                                 activation='linear', 
                                 kernel_initializer=kernel_initializer,
@@ -262,7 +262,7 @@ class manage_RM(object):
                                      'verbose': False, 
                                      'validation_split': validation_split}
                 self._multi_predic = True
-            elif self.RM_type == 'KerasDis':
+            elif self.RM_type == 'K_ANN_Dis':
                 model.add(Dense(self.N_out, 
                                 activation='softmax', 
                                 kernel_initializer=kernel_initializer,
@@ -279,7 +279,7 @@ class manage_RM(object):
                                  'verbose': False, 
                                  'validation_split': validation_split}
             self._multi_predic = True
-        elif self.RM_type == 'KANN':
+        elif self.RM_type == 'K_SC_ANN':
             def get_kwargs(kw, default):
                 if kw in kwargs:
                     return kwargs[kw]
@@ -678,7 +678,7 @@ class manage_RM(object):
             print('Predicting from {} inputs to {} outputs using {} data in {:.2f} secs.'.format(self.N_in_test,
                   self.N_out, self.N_test, end - start))
         
-    def save_RM(self, filename='RM_jl.sav', save_train=False, save_test=False):
+    def save_RM(self, filename='RM', save_train=False, save_test=False):
         """
         Save the following values:
         self.RM_type, self.RM_version, self.RMs, 
@@ -705,14 +705,17 @@ class manage_RM(object):
             X_test, y_test = self.X_test, self.y_test
         else:
             X_test, y_test = None, None
-            
-        joblib.dump((self.RM_type, self.RM_version, self.RMs, 
-                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                     self.pca_N, self.pca, self.training_time, self.random_seed,
-                     self.noise, X_train, y_train, X_test, y_test,
-                     self.train_scaled, self.test_scaled, self.verbose), filename)
+        
+        if self.RM_type[0:3] == 'SK_': 
+            joblib.dump((self.RM_type, self.RM_version, self.RMs, 
+                         self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
+                         self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                         self.N_test, self.N_test_y, self.N_train, self.N_train_y,
+                         self.pca_N, self.pca, self.training_time, self.random_seed,
+                         self.noise, X_train, y_train, X_test, y_test,
+                         self.train_scaled, self.test_scaled, self.verbose), filename+'.mwinai1')
+        elif self.RM_type[0:2] == 'K_':
+            pass
         
         if self.verbose:
             print('RM save to {}'.format(filename))
