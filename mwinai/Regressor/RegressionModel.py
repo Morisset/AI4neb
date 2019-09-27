@@ -632,14 +632,19 @@ class manage_RM(object):
             if self.N_test != self.N_test_y:
                 raise Exception('N_test {} != N_test_y {}'.format(self.N_test, self.N_test_y))
             if self._multi_predic:
-                self.predic_score = [RM.score(self.X_test, self.y_test) for RM in self.RMs]
+                try:
+                    self.predic_score = [RM.score(self.X_test, self.y_test) for RM in self.RMs]
+                except:
+                    self.predic_score = [np.nan for RM in self.RMs]
             else:
                 if self.y_train.ndim == 1:
                     y_tests = (self.y_test,)
                 else:
                     y_tests = self.y_test.T
-
-                self.predic_score = [RM.score(self.X_test, y_test) for RM, y_test in zip(self.RMs, y_tests)]
+                try:
+                    self.predic_score = [RM.score(self.X_test, y_test) for RM, y_test in zip(self.RMs, y_tests)]
+                except:
+                    self.predic_score = [np.nan for RM, y_test in zip(self.RMs, y_tests)]
             if self.N_out != self.N_out_test:
                 raise Exception('N_out {} != N_out_test {}'.format(self.N_out,
                                 self.N_out_test))
