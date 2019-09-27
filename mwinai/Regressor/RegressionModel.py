@@ -10,6 +10,7 @@ Created on Tue Dec 18 09:03:31 2018
 import numpy as np
 import time
 import random
+from glob import glob
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.externals import joblib
@@ -65,7 +66,8 @@ class manage_RM(object):
                  use_log=False,
                  split_ratio = None,
                  verbose=False,
-                 RM_filename=None, use_RobustScaler=False,
+                 RM_filename=None, 
+                 use_RobustScaler=False,
                  random_seed=None,
                  noise=None,
                  N_y_bins=None,
@@ -630,14 +632,19 @@ class manage_RM(object):
             if self.N_test != self.N_test_y:
                 raise Exception('N_test {} != N_test_y {}'.format(self.N_test, self.N_test_y))
             if self._multi_predic:
-                self.predic_score = [RM.score(self.X_test, self.y_test) for RM in self.RMs]
+                try:
+                    self.predic_score = [RM.score(self.X_test, self.y_test) for RM in self.RMs]
+                except:
+                    self.predic_score = [np.nan for RM in self.RMs]
             else:
                 if self.y_train.ndim == 1:
                     y_tests = (self.y_test,)
                 else:
                     y_tests = self.y_test.T
-
-                self.predic_score = [RM.score(self.X_test, y_test) for RM, y_test in zip(self.RMs, y_tests)]
+                try:
+                    self.predic_score = [RM.score(self.X_test, y_test) for RM, y_test in zip(self.RMs, y_tests)]
+                except:
+                    self.predic_score = [np.nan for RM, y_test in zip(self.RMs, y_tests)]
             if self.N_out != self.N_out_test:
                 raise Exception('N_out {} != N_out_test {}'.format(self.N_out,
                                 self.N_out_test))
@@ -713,15 +720,23 @@ class manage_RM(object):
                          self.N_test, self.N_test_y, self.N_train, self.N_train_y,
                          self.pca_N, self.pca, self.training_time, self.random_seed,
                          self.noise, X_train, y_train, X_test, y_test,
-                         self.train_scaled, self.test_scaled, self.verbose), filename+'.mwinai1')
+                         self.train_scaled, self.test_scaled, self.verbose), filename+'.mwinai_sk')
         elif self.RM_type[0:2] == 'K_':
-            pass
-        
+            joblib.dump((self.RM_type, self.RM_version, 
+                         self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
+                         self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                         self.N_test, self.N_test_y, self.N_train, self.N_train_y,
+                         self.pca_N, self.pca, self.training_time, self.random_seed,
+                         self.noise, X_train, y_train, X_test, y_test,
+                         self.train_scaled, self.test_scaled, self.verbose), filename+'.mwinai_k0')
+            for i, RM in enumerate(self.RMs):
+                RM.save('{}.mwinai_k{}'.format(filename, i+1))
+            
         if self.verbose:
             print('RM save to {}'.format(filename))
         
             
-    def load_RM(self, filename='RM_jl.sav'):
+    def load_RM(self, filename='RM'):
         """
         Loading previously saved model.
         joblib is used to load.
@@ -739,56 +754,77 @@ class manage_RM(object):
         RM.predict(scoring=False)
         
         """
-        
-        RM_tuple = joblib.load(filename)
-        if self.RM_version != RM_tuple[1] and self.verbose:
-            print('WARNING: version loaded from {} is {}. Version from RM class is {}.'.format(filename, 
-                                                                  RM_tuple[1],self.RM_version))
-        if RM_tuple[1] in ("0.15"):
-            (self.RM_type, self.RM_version, self.RMs, 
-                 self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                 self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                 self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                 self.pca_N, self.pca, self.training_time, self.random_seed, 
-                 self.noise, self.X_train, self.y_train, self.X_test, self.y_test,
-                 self.train_scaled, self.test_scaled, self.verbose) = RM_tuple
-        elif RM_tuple[1] in ("0.14"):
-            (self.RM_type, self.RM_version, self.RMs, 
-                 self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                 self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                 self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                 self.pca_N, self.pca, self.training_time, self.random_seed, self.noise) = RM_tuple
-        elif RM_tuple[1] in ("0.12", "0.13"):
-            (self.RM_type, self.RM_version, self.RMs, 
-                 self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                 self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                 self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                 self.pca_N, self.pca, self.training_time, self.random_seed) = RM_tuple
-        elif RM_tuple[1] == "0.11":
-            (self.RM_type, self.RM_version, self.RMs, 
-                 self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                 self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                 self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                 self.pca_N, self.pca, self.training_time) = RM_tuple
-        elif RM_tuple[1] == "0.10":
-            (self.RM_type, self.RM_version, self.RMs, 
-                 self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                 self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                 self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                 self.pca_N, self.pca) = RM_tuple
-        elif "{:.1f}".format(RM_tuple[1]) == "0.9":
-            (self.RM_type, self.RM_version, self.RMs, 
-                 self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                 self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                 self.N_test, self.N_test_y, self.N_train, self.N_train_y) = RM_tuple
-        elif "{:.1f}".format(RM_tuple[1]) == "0.8":
-            (self.RM_type, self.RM_version, self.RMs, 
-                 self.scaler, self.train_score, self._multi_predic,
-                 self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                 self.N_test, self.N_test_y, self.N_train, self.N_train_y) = RM_tuple
-        self.trained = True
-        if self.verbose:
-            print('RM loaded from {}'.format(filename))
+        files = glob("{}.*".format(filename))
+        if "{}.mwinai_sk".format(filename) in files: 
+            RM_tuple = joblib.load("{}.mwinai_sk".format(filename))
+            if self.RM_version != RM_tuple[1] and self.verbose:
+                print('WARNING: version loaded from {} is {}. Version from RM class is {}.'.format(filename, 
+                                                                      RM_tuple[1],self.RM_version))
+            if RM_tuple[1] in ("0.15"):
+                (self.RM_type, self.RM_version, self.RMs, 
+                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
+                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
+                     self.pca_N, self.pca, self.training_time, self.random_seed, 
+                     self.noise, self.X_train, self.y_train, self.X_test, self.y_test,
+                     self.train_scaled, self.test_scaled, self.verbose) = RM_tuple
+            elif RM_tuple[1] in ("0.14"):
+                (self.RM_type, self.RM_version, self.RMs, 
+                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
+                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
+                     self.pca_N, self.pca, self.training_time, self.random_seed, self.noise) = RM_tuple
+            elif RM_tuple[1] in ("0.12", "0.13"):
+                (self.RM_type, self.RM_version, self.RMs, 
+                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
+                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
+                     self.pca_N, self.pca, self.training_time, self.random_seed) = RM_tuple
+            elif RM_tuple[1] == "0.11":
+                (self.RM_type, self.RM_version, self.RMs, 
+                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
+                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
+                     self.pca_N, self.pca, self.training_time) = RM_tuple
+            elif RM_tuple[1] == "0.10":
+                (self.RM_type, self.RM_version, self.RMs, 
+                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
+                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
+                     self.pca_N, self.pca) = RM_tuple
+            elif "{:.1f}".format(RM_tuple[1]) == "0.9":
+                (self.RM_type, self.RM_version, self.RMs, 
+                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
+                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                     self.N_test, self.N_test_y, self.N_train, self.N_train_y) = RM_tuple
+            elif "{:.1f}".format(RM_tuple[1]) == "0.8":
+                (self.RM_type, self.RM_version, self.RMs, 
+                     self.scaler, self.train_score, self._multi_predic,
+                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                     self.N_test, self.N_test_y, self.N_train, self.N_train_y) = RM_tuple
+            self.trained = True
+            if self.verbose:
+                print('RM loaded from {}.mwinai_sk'.format(filename))
+                
+        elif "{}.mwinai_k0".format(filename) in files: 
+            RM_tuple = joblib.load("{}.mwinai_k0".format(filename))
+            if self.RM_version != RM_tuple[1] and self.verbose:
+                print('WARNING: version loaded from {} is {}. Version from RM class is {}.'.format(filename, 
+                                                                      RM_tuple[1],self.RM_version))
+            if RM_tuple[1] in ("0.15"):
+                (self.RM_type, self.RM_version, 
+                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
+                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
+                     self.pca_N, self.pca, self.training_time, self.random_seed, 
+                     self.noise, self.X_train, self.y_train, self.X_test, self.y_test,
+                     self.train_scaled, self.test_scaled, self.verbose) = RM_tuple
+            if self.verbose:
+                print('RM loaded from {}.mwinai_k0'.format(filename))
+            self.RMs = [load_model("{}.mwinai_k1".format(filename))]
+            self.trained = True
+            if self.verbose:
+                print('RM loaded from {}.mwinai_k1'.format(filename))
 
 #%%
 if __name__ == "__main__":
