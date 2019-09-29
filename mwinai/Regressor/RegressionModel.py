@@ -49,7 +49,8 @@ except:
             TF_OK = True
         except:
             TF_OK = False
-RM_version = "0.15"
+            
+RM_version = "0.17"
 #%%
 class manage_RM(object):
     """
@@ -69,7 +70,6 @@ class manage_RM(object):
                  RM_filename=None, 
                  use_RobustScaler=False,
                  random_seed=None,
-                 noise=None,
                  N_y_bins=None,
                  y_vects=None,
                  min_discret=0,
@@ -99,14 +99,14 @@ class manage_RM(object):
             except:
                 if self.verbose:
                     print('Session not cleared')
+        self.init_random(random_seed)
         self.RM_version = RM_version
-        self.random_seed = random_seed
-        np.random.seed(self.random_seed)
-        random.seed(self.random_seed)
         if self.verbose:
             print('Instantiation. V {}'.format(self.RM_version))
         self.RM_type = RM_type
+        self.scaling = scaling
         self.scaling_y = scaling_y
+        self.use_log = use_log
         self.use_RobustScaler = use_RobustScaler 
         self.scaler = None
         self.scaler_y = None
@@ -114,7 +114,6 @@ class manage_RM(object):
         self.pca = None
         self.train_scaled = False
         self.test_scaled = False
-        self.noise = noise
         self.N_y_bins = N_y_bins
         self.y_vects = y_vects
         self.min_discret=min_discret
@@ -135,7 +134,6 @@ class manage_RM(object):
         self._init_dims(train=True, test=True)
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
-        self.add_noise()
         self.discretized = False
         if self.N_y_bins is not None or self.y_vects is not None:
             self.discretize()
@@ -143,11 +141,12 @@ class manage_RM(object):
         else:
             self.y_train_ori = self.y_train
             self.y_test_ori = self.y_test            
-        if scaling:
-            self.scale_sets(use_log=use_log)
+        if self.scaling:
+            self.scale_sets(use_log=self.use_log)
         else:
             self.X_train_unscaled = self.X_train
             self.X_test_unscaled = self.X_test
+            self.y_train_unscaled = self.y_train
         self.RMs = None
         self.trained = False
         self._multi_predic = True
@@ -155,6 +154,12 @@ class manage_RM(object):
             self.load_RM(filename=RM_filename)
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
+        
+    def init_random(self, seed):
+        self.random_seed = seed
+        np.random.seed(self.random_seed)
+        random.seed(self.random_seed)
+        
         
     def _init_dims(self, train=True, test=True):
         
@@ -341,16 +346,32 @@ class manage_RM(object):
         if self.verbose:
             print('Regression Model {}'.format(self.RM_type))
 
-    def add_noise(self, only_test=False):
+    def __add_noise(self, only_test=False):
+        """
+        Obsolete, noise has to be managed outside the class.
+        """
         if self.noise is not None:
+            if type(self.noise) in (tuple, list):
+                noise_train = self.noise[0]
+                noise_test = self.noise[1]
+            else:
+                noise_train = self.noise
+                noise_test = self.noise
+                
             if not only_test:
-                noise = np.random.normal(0.0, self.noise, self.X_train.shape)
-                self.X_train *= 1 + noise
+                self.X_train *= 1 + np.random.normal(0.0, noise_train, self.X_train.shape)
+                train_str = ' and {} to train'.format(noise_train)
+            else:
+                train_str = ''
+            
             if self.X_test is not None:
-                noise = np.random.normal(0.0, self.noise, self.X_test.shape)
-                self.X_test *= 1 + noise
+                self.X_test *= 1 + np.random.normal(0.0, noise_test, self.X_test.shape)
+                test_str = ' {} to test'.format(noise_test)
+            else:
+                test_str = ''
+            
             if self.verbose:
-                print("Adding noise {}".format(self.noise))
+                print("Adding noise{}{}.".format(test_str, train_str))
             
     def discretize(self):
         
@@ -408,8 +429,10 @@ class manage_RM(object):
                 print("Discretizing column {} on {} bins".format(i, self.N_y_bins[i])) 
         return new_y
             
-    def set_train(self, X=None, y=None, scaleit=False, use_log=False):
-        
+    def __set_train(self, X=None, y=None):
+        """
+        Obsolete. It is actually not useful!
+        """
         self.X_train = self._copy_None(X)
         self.y_train = self._copy_None(y)
         self.train_scaled = False
@@ -417,24 +440,29 @@ class manage_RM(object):
         if self.N_y_bins is not None or self.y_vects is not None:
             self.discretize()
             self._init_dims(train=True, test=True)
-        if scaleit:
-            self.scale_sets(use_log=use_log)
+        if self.scaling:
+            self.scale_sets(use_log=self.use_log)
         else:
             self.scaler = None
         self._init_dims(train=True, test=False)
+        self.RMs = None
 
-    def set_test(self, X=None, y=None, scaleit=False, use_log=False):
+    def set_test(self, X=None, y=None):
 
         self.X_test = self._copy_None(X)
         self.y_test = self._copy_None(y)
-        self.add_noise(only_test=True)
+                
         self.test_scaled = False
-        if scaleit:
-            self.scale_sets(use_log=use_log)
-        self.y_test_ori = self._copy_None(self.y_test)
-        self._init_dims(train=False, test=True)
+        if self.scaling:
+            self.scale_sets(use_log=self.use_log)
+        else:
+            self.X_test_unscaled = self.X_test
+        self.discretized = False
         if self.N_y_bins is not None or self.y_vects is not None:
+            self.y_test_ori = self._copy_None(self.y_test)                
             self.y_test = self._discretize1(self.y_test)
+        else:
+            self.y_test_ori = self.y_test            
         self._init_dims(train=False, test=True)
 
     def _log_data(self, X, y):
@@ -484,15 +512,14 @@ class manage_RM(object):
         and only finite data is kept.
         The scaler is applied to self.X_train and self.X_test if they exist.
         """
-        
+        self.y_train_unscaled = self.y_train
+        log_str = ''
+        pca_str = ''
         if (not self.train_scaled) or force:
             self.X_train_unscaled = self._copy_None(self.X_train)
             if use_log:
                 self.X_train, self.y_train = self._log_data(self.X_train, self.y_train)
                 log_str = 'Log10 applied. '
-            else:
-                log_str = ''
-            pca_str = ''
             if self.X_train is not None:
                 self._set_scaler()
                 self._set_scaler_y()
@@ -507,23 +534,21 @@ class manage_RM(object):
                 self.train_scaled = True
             
             if self.verbose:
-                print('{}{}Train data scaled.'.format(log_str,pca_str))
+                print('Train data scaled. {}{}'.format(log_str,pca_str))
         
+        log_str = ''
+        pca_str = ''
         if (not self.test_scaled) or force:
             if self.X_test is not None:
                 self.X_test_unscaled = self._copy_None(self.X_test)
                 if use_log:
                     self.X_test, self.y_test = self._log_data(self.X_test, self.y_test)
                     log_str = 'Log10 applied. '
-                else:
-                    log_str = ''
                 if self.X_test is not None:
                     self.X_test = self.scaler.transform(self.X_test)
                     if self.pca is not None:
                         self.X_test = self.pca.transform(self.X_test)
                         pca_str = 'PCA {} components applied. '.format(self.pca_N)
-                    else:
-                        pca_str = ''    
                     # No need to scale y_test as pred is inverse scaled after determined.
                     #if self.scaling_y and self.scaler_y is not None and self.y_test is not None:
                     #    self.y_test = self.scaler_y.transform(self.y_test)
@@ -531,7 +556,7 @@ class manage_RM(object):
                     self.test_scaled = True
             
             if self.verbose:
-                print('{}{}Test data scaled.'.format(log_str,pca_str))
+                print('Test data scaled. {}{}'.format(log_str,pca_str))
                 
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
@@ -688,52 +713,66 @@ class manage_RM(object):
     def save_RM(self, filename='RM', save_train=False, save_test=False):
         """
         Save the following values:
-        self.RM_type, self.RM_version, self.RMs, 
-        self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-        self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-        self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-        self.pca_N, self.pca. self.training_time
-        """
+            self.RM_version, self.RM_type, 
+                   X_train, y_train, X_test, y_test,
+                   self.scaling, self.scaling_y, 
+                   self.use_log, self.use_RobustScaler,
+                   self.train_scaled, self.test_scaled,
+                   self.scaler, self.scaler_y, 
+                   self.pca_N, self.pca, 
+                   self.N_y_bins, self.y_vects,
+                   self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                   self.N_test, self.N_test_y, self.N_train, self.N_train_y,
+                   self.train_score, self._multi_predic,
+                   self.trained, self.training_time,
+                   self.random_seed,
+                   self.RMs
         
+        If using Keras, self.RMs is saved as None, as the RMs are stored in a different file.
         """
-        ToDo for Keras:
-        self.RMs[0].save("model.h5")
-        RM = load_model("model.h5")
-
-        """
-        
+                
         if not self.trained:
             raise Exception('Regression Model not trained')
         if save_train:
-            X_train, y_train = self.X_train, self.y_train
+            X_train, y_train = self.X_train_unscaled, self.y_train_unscaled
         else:
             X_train, y_train = None, None
         if save_test:
-            X_test, y_test = self.X_test, self.y_test
+            X_test, y_test = self.X_test_unscaled, self.y_test
         else:
             X_test, y_test = None, None
         
+        to_save = [self.RM_version, self.RM_type, 
+                   X_train, y_train, X_test, y_test,
+                   self.scaling, self.scaling_y, 
+                   self.use_log, self.use_RobustScaler,
+                   self.train_scaled, self.test_scaled,
+                   self.scaler, self.scaler_y, 
+                   self.pca_N, self.pca, 
+                   self.N_y_bins, self.y_vects,
+                   self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                   self.N_test, self.N_test_y, self.N_train, self.N_train_y,
+                   self.train_score, self._multi_predic,
+                   self.trained, self.training_time,
+                   self.random_seed 
+                   ]
+        
         if self.RM_type[0:3] == 'SK_': 
-            joblib.dump((self.RM_type, self.RM_version, self.RMs, 
-                         self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                         self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                         self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                         self.pca_N, self.pca, self.training_time, self.random_seed,
-                         self.noise, X_train, y_train, X_test, y_test,
-                         self.train_scaled, self.test_scaled, self.verbose), filename+'.mwinai_sk')
+            to_save.append(self.RMs)
+            joblib.dump(to_save, filename+'.mwinai_sk')
+            if self.verbose:
+                print('RM save to {}.mwinai_sk'.format(filename))
         elif self.RM_type[0:2] == 'K_':
-            joblib.dump((self.RM_type, self.RM_version, 
-                         self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                         self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                         self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                         self.pca_N, self.pca, self.training_time, self.random_seed,
-                         self.noise, X_train, y_train, X_test, y_test,
-                         self.train_scaled, self.test_scaled, self.verbose), filename+'.mwinai_k0')
+            to_save.append(None)
+            joblib.dump(to_save, filename+'.mwinai_k0')
+            if self.verbose:
+                print('RM save to {}.mwinai_k0'.format(filename))
             for i, RM in enumerate(self.RMs):
                 RM.save('{}.mwinai_k{}'.format(filename, i+1))
-            
-        if self.verbose:
-            print('RM save to {}'.format(filename))
+                if self.verbose:
+                    print('RM save to {}.mwinai_k{}'.format(filename, i+1))
+        else:
+           print('Do not know how to save {} machine'.format(self.RM_type))
         
             
     def load_RM(self, filename='RM'):
@@ -755,77 +794,71 @@ class manage_RM(object):
         
         """
         files = glob("{}.*".format(filename))
-        if "{}.mwinai_sk".format(filename) in files: 
-            RM_tuple = joblib.load("{}.mwinai_sk".format(filename))
-            if self.RM_version != RM_tuple[1] and self.verbose:
-                print('WARNING: version loaded from {} is {}. Version from RM class is {}.'.format(filename, 
-                                                                      RM_tuple[1],self.RM_version))
-            if RM_tuple[1] in ("0.15"):
-                (self.RM_type, self.RM_version, self.RMs, 
-                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                     self.pca_N, self.pca, self.training_time, self.random_seed, 
-                     self.noise, self.X_train, self.y_train, self.X_test, self.y_test,
-                     self.train_scaled, self.test_scaled, self.verbose) = RM_tuple
-            elif RM_tuple[1] in ("0.14"):
-                (self.RM_type, self.RM_version, self.RMs, 
-                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                     self.pca_N, self.pca, self.training_time, self.random_seed, self.noise) = RM_tuple
-            elif RM_tuple[1] in ("0.12", "0.13"):
-                (self.RM_type, self.RM_version, self.RMs, 
-                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                     self.pca_N, self.pca, self.training_time, self.random_seed) = RM_tuple
-            elif RM_tuple[1] == "0.11":
-                (self.RM_type, self.RM_version, self.RMs, 
-                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                     self.pca_N, self.pca, self.training_time) = RM_tuple
-            elif RM_tuple[1] == "0.10":
-                (self.RM_type, self.RM_version, self.RMs, 
-                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                     self.pca_N, self.pca) = RM_tuple
-            elif "{:.1f}".format(RM_tuple[1]) == "0.9":
-                (self.RM_type, self.RM_version, self.RMs, 
-                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                     self.N_test, self.N_test_y, self.N_train, self.N_train_y) = RM_tuple
-            elif "{:.1f}".format(RM_tuple[1]) == "0.8":
-                (self.RM_type, self.RM_version, self.RMs, 
-                     self.scaler, self.train_score, self._multi_predic,
-                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                     self.N_test, self.N_test_y, self.N_train, self.N_train_y) = RM_tuple
-            self.trained = True
-            if self.verbose:
-                print('RM loaded from {}.mwinai_sk'.format(filename))
-                
+        
+   
+        if "{}.mwinai_sk".format(filename) in files:
+            to_read = "{}.mwinai_sk".format(filename)
+            read_k1 = False
         elif "{}.mwinai_k0".format(filename) in files: 
-            RM_tuple = joblib.load("{}.mwinai_k0".format(filename))
-            if self.RM_version != RM_tuple[1] and self.verbose:
-                print('WARNING: version loaded from {} is {}. Version from RM class is {}.'.format(filename, 
-                                                                      RM_tuple[1],self.RM_version))
-            if RM_tuple[1] in ("0.15"):
-                (self.RM_type, self.RM_version, 
-                     self.scaler, self.scaler_y, self.scaling_y, self.train_score, self._multi_predic,
-                     self.N_in, self.N_out, self.N_in_test, self.N_out_test,
-                     self.N_test, self.N_test_y, self.N_train, self.N_train_y,
-                     self.pca_N, self.pca, self.training_time, self.random_seed, 
-                     self.noise, self.X_train, self.y_train, self.X_test, self.y_test,
-                     self.train_scaled, self.test_scaled, self.verbose) = RM_tuple
+            to_read = "{}.mwinai_k0".format(filename)
+            read_k1 = True
+        else:
+            to_read = None
+            read_k1 = False
+            print('No mwinai file found for {}'.format(filename))
+            return
+        
+        try:
+            RM_tuple = joblib.load(to_read)
             if self.verbose:
-                print('RM loaded from {}.mwinai_k0'.format(filename))
-            self.RMs = [load_model("{}.mwinai_k1".format(filename))]
-            self.trained = True
-            if self.verbose:
-                print('RM loaded from {}.mwinai_k1'.format(filename))
-
+                print('RM loaded from {}'.format(to_read))
+        except:
+            print('!! ERROR reading {}'.format(to_read))
+        
+        load_version = RM_tuple[0]
+        if self.RM_version != load_version and self.verbose:
+            print('WARNING: version loaded from {} is {}. Version from RM class is {}.'.format(to_read, 
+                                                                  load_version, self.RM_version))
+        
+        if load_version in ("0.17"):
+            (self.RM_version, self.RM_type, 
+                   self.X_train, self.y_train, self.X_test, self.y_test,
+                   self.scaling, self.scaling_y, 
+                   self.use_log, self.use_RobustScaler,
+                   self.train_scaled, self.test_scaled,
+                   self.scaler, self.scaler_y, 
+                   self.pca_N, self.pca, 
+                   self.N_y_bins, self.y_vects,
+                   self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                   self.N_test, self.N_test_y, self.N_train, self.N_train_y,
+                   self.train_score, self._multi_predic,
+                   self.trained, self.training_time,
+                   self.random_seed, 
+                   self.RMs) = RM_tuple
+        else:
+            print('!! ERROR. This version is not supported.')
+        if read_k1:
+            try:
+                self.RMs = [load_model("{}.mwinai_k1".format(filename))]
+                if self.verbose:
+                    print('RM loaded from {}.mwinai_k1'.format(filename))
+            except:
+                print('!! ERROR reading {}.mwinai_k1'.format(filename))
+                
+        self.discretized = False
+        if self.N_y_bins is not None or self.y_vects is not None:
+            self.discretize()
+        else:
+            self.y_train_ori = self.y_train
+            self.y_test_ori = self.y_test            
+        if self.scaling:
+            self.scale_sets(use_log=self.use_log, force=True)
+        else:
+            self.X_train_unscaled = self.X_train
+            self.X_test_unscaled = self.X_test
+            self.y_train_unscaled = self.y_train
+        
+                
 #%%
 if __name__ == "__main__":
     pass
