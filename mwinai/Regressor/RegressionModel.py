@@ -150,6 +150,7 @@ class manage_RM(object):
         self.RMs = None
         self.trained = False
         self._multi_predic = True
+        self.RM_filename = RM_filename
         if RM_filename is not None:
             self.load_RM(filename=RM_filename)
         if self.verbose:
