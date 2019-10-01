@@ -694,6 +694,7 @@ class manage_RM(object):
                             i_inf = self.N_y_bins.cumsum()[i-1]
                         i_sup = self.N_y_bins.cumsum()[i]
                         self.pred[:,i] = np.dot(self.pred_norm[:,i_inf:i_sup],self.y_vects[i])
+                print('Reducing y by mean')
             elif reduce_by == 'max':
                 if len(self.N_y_bins) == 1:
                     self.pred = self.y_vects[np.argmax(self.pred_norm, 1)]
@@ -706,6 +707,7 @@ class manage_RM(object):
                             i_inf = self.N_y_bins.cumsum()[i-1]
                         i_sup = self.N_y_bins.cumsum()[i]
                         self.pred[:,i] = self.y_vects[i, np.argmax(self.pred_norm[:,i_inf:i_sup], 1)]
+                print('Reducing y by max')
         end = time.time()
         if self.verbose:
             print('Predicting from {} inputs to {} outputs using {} data in {:.2f} secs.'.format(self.N_in_test,
