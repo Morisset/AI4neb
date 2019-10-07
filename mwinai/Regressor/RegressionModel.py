@@ -477,10 +477,10 @@ class manage_RM(object):
         else:
             n_keys = X.shape[1]
             X = np.log10(X)
-            isfin = np.isfinite(X).sum(1) == n_keys
-            X = X[isfin]
+            self.isfin = np.isfinite(X).sum(1) == n_keys
+            X = X[self.isfin]
             if y is not None:
-                y = y[isfin]
+                y = y[self.isfin]
             
             return X, y
         
