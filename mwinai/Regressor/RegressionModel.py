@@ -253,7 +253,8 @@ class manage_RM(object):
                     d1 = dropout[0]
                 else:
                     d1 = dropout
-                model.add(Dropout(d1, seed=random_state))
+                if d1 != 0.0:
+                    model.add(Dropout(d1, seed=random_state))
             for i_hl, hidden_layer_size in enumerate(hidden_layer_sizes[1:]):
                 model.add(Dense(hidden_layer_size, 
                                 activation=activation, 
@@ -264,7 +265,8 @@ class manage_RM(object):
                         di = dropout[i_hl+1]
                     else:
                         di = dropout
-                    model.add(Dropout(di, seed=random_state))
+                    if di != 0.0:
+                        model.add(Dropout(di, seed=random_state))
             if self.RM_type == 'K_ANN':
                 model.add(Dense(self.N_out, 
                                 activation='linear', 
