@@ -248,13 +248,23 @@ class manage_RM(object):
                             kernel_initializer=kernel_initializer,
                             bias_initializer=bias_initializer,
                             activation=activation))
-            for hidden_layer_size in hidden_layer_sizes[1:]:
+            if dropout is not None:
+                if type(dropout) in (type(()), type([])):
+                    d1 = dropout[0]
+                else:
+                    d1 = dropout
+                model.add(Dropout(d1, seed=random_state))
+            for i_hl, hidden_layer_size in enumerate(hidden_layer_sizes[1:]):
                 model.add(Dense(hidden_layer_size, 
                                 activation=activation, 
                                 kernel_initializer=kernel_initializer,
                                 bias_initializer=bias_initializer))
                 if dropout is not None:
-                    model.add(Dropout(dropout, seed=random_state))
+                    if type(dropout) in (type(()), type([])):
+                        di = dropout[i_hl+1]
+                    else:
+                        di = dropout
+                    model.add(Dropout(di, seed=random_state))
             if self.RM_type == 'K_ANN':
                 model.add(Dense(self.N_out, 
                                 activation='linear', 
@@ -634,7 +644,7 @@ class manage_RM(object):
         self.pred_norm =  tmp / np.expand_dims(tmp.sum(1), axis=1)
         
 
-    def predict(self, scoring=True, reduce_by=None):
+    def predict(self, scoring=False, reduce_by=None):
         """
         Compute the prediction usinf self.X_test
         Results are stored into self.pred
