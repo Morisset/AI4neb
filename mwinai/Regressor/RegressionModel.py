@@ -248,13 +248,25 @@ class manage_RM(object):
                             kernel_initializer=kernel_initializer,
                             bias_initializer=bias_initializer,
                             activation=activation))
-            for hidden_layer_size in hidden_layer_sizes[1:]:
+            if dropout is not None:
+                if type(dropout) in (type(()), type([])):
+                    d1 = dropout[0]
+                else:
+                    d1 = dropout
+                if d1 != 0.0:
+                    model.add(Dropout(d1, seed=random_state))
+            for i_hl, hidden_layer_size in enumerate(hidden_layer_sizes[1:]):
                 model.add(Dense(hidden_layer_size, 
                                 activation=activation, 
                                 kernel_initializer=kernel_initializer,
                                 bias_initializer=bias_initializer))
                 if dropout is not None:
-                    model.add(Dropout(dropout, seed=random_state))
+                    if type(dropout) in (type(()), type([])):
+                        di = dropout[i_hl+1]
+                    else:
+                        di = dropout
+                    if di != 0.0:
+                        model.add(Dropout(di, seed=random_state))
             if self.RM_type == 'K_ANN':
                 model.add(Dense(self.N_out, 
                                 activation='linear', 
@@ -477,10 +489,10 @@ class manage_RM(object):
         else:
             n_keys = X.shape[1]
             X = np.log10(X)
-            isfin = np.isfinite(X).sum(1) == n_keys
-            X = X[isfin]
+            self.isfin = np.isfinite(X).sum(1) == n_keys
+            X = X[self.isfin]
             if y is not None:
-                y = y[isfin]
+                y = y[self.isfin]
             
             return X, y
         
@@ -586,10 +598,7 @@ class manage_RM(object):
             else:
                 y_train = self.y_train
             RM.fit(self.X_train, y_train, **self.train_params)
-            try:
-                train_score = RM.score(self.X_train, y_train)
-            except:
-                train_score = np.nan
+            train_score = self.score(RM, self.X_train, y_train)
             self.train_score = [train_score]
             iter_str = '.'
             if self.verbose:
@@ -607,10 +616,7 @@ class manage_RM(object):
                 y_trains = self.y_train.T
             for RM, y_train in zip(self.RMs, y_trains):
                 RM.fit(self.X_train, y_train, **self.train_params)
-                try:
-                    train_score = RM.score(self.X_train, y_train)
-                except:
-                    train_score = np.nan
+                train_score = self.score(RM, self.X_train, y_train)
                 self.train_score.append(train_score)
                 iter_str = '.'
                 if self.verbose:
@@ -633,8 +639,35 @@ class manage_RM(object):
         tmp = self.pred - np.expand_dims(self.pred.min(1), axis=1)
         self.pred_norm =  tmp / np.expand_dims(tmp.sum(1), axis=1)
         
-
-    def predict(self, scoring=True, reduce_by=None):
+    def score(self, RM, X, y_true):
+        """
+        (1 - u/v), where u is the residual sum of squares ((y_true - y_pred) ** 2).sum() 
+        and v is the total sum of squares ((y_true - y_true.mean()) ** 2).sum().
+        """
+        y_pred = RM.predict(X)
+        if y_pred.ndim == 2 and y_pred.shape[1] == 1:
+                y_pred = np.ravel(y_pred)
+        u = ((y_true - y_pred) ** 2).sum()
+        v = ((y_true - y_true.mean()) ** 2).sum()
+        
+        return 1 - u/v
+        
+    def plot_loss(self, ax=None):
+        
+        import matplotlib.pyplot as plt
+        
+        if ax is None:
+            f, ax = plt.subplots()
+        if self.RMs is not None:
+            for RM in self.RMs:
+                if self.RM_type[0:3] == 'SK_':
+                    loss_values = RM.loss_curve_
+                elif self.RM_type[0:2] == 'K_':
+                    loss_values = RM.history.history['loss']
+                ax.plot(loss_values)
+            ax.set_yscale('log')
+        
+    def predict(self, scoring=False, reduce_by=None):
         """
         Compute the prediction usinf self.X_test
         Results are stored into self.pred
@@ -694,6 +727,7 @@ class manage_RM(object):
                             i_inf = self.N_y_bins.cumsum()[i-1]
                         i_sup = self.N_y_bins.cumsum()[i]
                         self.pred[:,i] = np.dot(self.pred_norm[:,i_inf:i_sup],self.y_vects[i])
+                print('Reducing y by mean')
             elif reduce_by == 'max':
                 if len(self.N_y_bins) == 1:
                     self.pred = self.y_vects[np.argmax(self.pred_norm, 1)]
@@ -706,6 +740,7 @@ class manage_RM(object):
                             i_inf = self.N_y_bins.cumsum()[i-1]
                         i_sup = self.N_y_bins.cumsum()[i]
                         self.pred[:,i] = self.y_vects[i, np.argmax(self.pred_norm[:,i_inf:i_sup], 1)]
+                print('Reducing y by max')
         end = time.time()
         if self.verbose:
             print('Predicting from {} inputs to {} outputs using {} data in {:.2f} secs.'.format(self.N_in_test,
