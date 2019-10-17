@@ -251,7 +251,7 @@ class manage_RM(object):
                             kernel_initializer=kernel_initializer,
                             bias_initializer=bias_initializer,
                             activation=activation,
-                            regularizers.l1_l2(l1=L1, l2=L2)))
+                            kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
             if dropout is not None:
                 if type(dropout) in (type(()), type([])):
                     d1 = dropout[0]
@@ -264,7 +264,7 @@ class manage_RM(object):
                                 activation=activation, 
                                 kernel_initializer=kernel_initializer,
                                 bias_initializer=bias_initializer,
-                                regularizers.l1_l2(l1=L1, l2=L2)))
+                                kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
                 if dropout is not None:
                     if type(dropout) in (type(()), type([])):
                         di = dropout[i_hl+1]
@@ -277,7 +277,7 @@ class manage_RM(object):
                                 activation='linear', 
                                 kernel_initializer=kernel_initializer,
                                 bias_initializer=bias_initializer,
-                                regularizers.l1_l2(l1=L1, l2=L2)))
+                                kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
                 metrics = get_kwargs('metrics', ['mse','mae'])
                 model.compile(loss='mse', 
                               optimizer=optimizer, 
@@ -293,7 +293,7 @@ class manage_RM(object):
                                 activation='softmax', 
                                 kernel_initializer=kernel_initializer,
                                 bias_initializer=bias_initializer,
-                                regularizers.l1_l2(l1=L1, l2=L2)))
+                                kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
                 metrics = get_kwargs('metrics', ['accuracy'])
                 model.compile(loss='categorical_crossentropy', 
                               optimizer=optimizer, 
@@ -666,15 +666,15 @@ class manage_RM(object):
         if self.RMs is not None:
             for RM in self.RMs:
                 if self.RM_type[0:3] == 'SK_':
-                    loss_values = RM.loss_curve_
+                    self.loss_values = RM.loss_curve_
                     val_loss_values = None
                 elif self.RM_type[0:2] == 'K_':
-                    loss_values = RM.history.history['loss']
+                    self.loss_values = RM.history.history['loss']
                     try:
                         val_loss_values = RM.history.history['val_loss']
                     except:
                         val_loss_values = None   
-                ax.plot(loss_values, label='Train loss')
+                ax.plot(self.loss_values, label='Train loss')
                 if val_loss_values is not None:
                     ax.plot(val_loss_values, label='Validation loss')
             ax.set_yscale('log')
