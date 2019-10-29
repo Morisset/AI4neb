@@ -23,30 +23,33 @@ from sklearn.decomposition import PCA
 # Keras
 try:
     import tensorflow as tf
-    from keras.models import Sequential, load_model
-    from keras.layers import Dense, Dropout
-    from keras.wrappers.scikit_learn import KerasRegressor
-    from keras import backend as K
-    from keras import initializers
+    from tensorflow.keras.models import Sequential, load_model
+    from tensorflow.keras.layers import Dense, Dropout
+    from tensorflow.keras import backend as K
+    from tensorflow.keras import initializers, regularizers
+    from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
     TF_OK = True
+    keras_acces = 'tf.keras'
 except:
     try:
         import tensorflow as tf
-        from tensorflow.python.keras.models import Sequential, load_model
-        from tensorflow.python.keras.layers import Dense, Dropout
-        from tensorflow.python.keras import backend as K
-        from tensorflow.python.keras import initializers
-        from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
+        from keras.models import Sequential, load_model
+        from keras.layers import Dense, Dropout
+        from keras.wrappers.scikit_learn import KerasRegressor
+        from keras import backend as K
+        from keras import initializers, regularizers
         TF_OK = True
+        keras_acces = 'keras'
     except:
         try:
             import tensorflow as tf
-            from tensorflow.keras.models import Sequential, load_model
-            from tensorflow.keras.layers import Dense, Dropout
-            from tensorflow.keras import backend as K
-            from tensorflow.keras import initializers
-            from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
+            from tensorflow.python.keras.models import Sequential, load_model
+            from tensorflow.python.keras.layers import Dense, Dropout
+            from tensorflow.python.keras import backend as K
+            from tensorflow.python.keras import initializers, regularizers
+            from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
             TF_OK = True
+            keras_acces = 'tf.python.keras'
         except:
             TF_OK = False
             
@@ -57,7 +60,7 @@ class manage_RM(object):
     Manage Regression Model from SciKit learn and Tensorflow via Keras.
     """
     TF_OK = TF_OK
-    
+    keras_acces = keras_acces
     def __init__(self, RM_type = 'SK_ANN',
                  X_train=None, y_train=None, 
                  X_test=None, y_test=None,
@@ -233,21 +236,25 @@ class manage_RM(object):
             if self.random_seed is None:
                 bias_initializer = 'zeros'
             else:
-                bias_initializer = initializers.Constant(0.1)
+                cst = np.random.rand()
+                bias_initializer = initializers.Constant(0.1 + 0.05+cst)
             optimizer = get_kwargs('optimizer', get_kwargs('solver', 'adam'))
-            epochs = get_kwargs('epochs', 1)
+            epochs = get_kwargs('epochs', 100)
             batch_size = get_kwargs('batch_size', None)
             validation_split = get_kwargs('validation_split', 0.0)
             hidden_layer_sizes = get_kwargs('hidden_layer_sizes', (10,10))
             random_state = get_kwargs('random_state', self.random_seed)
             dropout = get_kwargs('dropout', None)
+            L1 = get_kwargs('L1', 0.)
+            L2 = get_kwargs('L2', 0.)
             tf.compat.v1.random.set_random_seed(random_state)
             model = Sequential()
             model.add(Dense(hidden_layer_sizes[0], 
                             input_dim=self.N_in, 
                             kernel_initializer=kernel_initializer,
                             bias_initializer=bias_initializer,
-                            activation=activation))
+                            activation=activation,
+                            kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
             if dropout is not None:
                 if type(dropout) in (type(()), type([])):
                     d1 = dropout[0]
@@ -259,7 +266,8 @@ class manage_RM(object):
                 model.add(Dense(hidden_layer_size, 
                                 activation=activation, 
                                 kernel_initializer=kernel_initializer,
-                                bias_initializer=bias_initializer))
+                                bias_initializer=bias_initializer,
+                                kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
                 if dropout is not None:
                     if type(dropout) in (type(()), type([])):
                         di = dropout[i_hl+1]
@@ -271,7 +279,8 @@ class manage_RM(object):
                 model.add(Dense(self.N_out, 
                                 activation='linear', 
                                 kernel_initializer=kernel_initializer,
-                                bias_initializer=bias_initializer))
+                                bias_initializer=bias_initializer,
+                                kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
                 metrics = get_kwargs('metrics', ['mse','mae'])
                 model.compile(loss='mse', 
                               optimizer=optimizer, 
@@ -286,7 +295,8 @@ class manage_RM(object):
                 model.add(Dense(self.N_out, 
                                 activation='softmax', 
                                 kernel_initializer=kernel_initializer,
-                                bias_initializer=bias_initializer))
+                                bias_initializer=bias_initializer,
+                                kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
                 metrics = get_kwargs('metrics', ['accuracy'])
                 model.compile(loss='categorical_crossentropy', 
                               optimizer=optimizer, 
@@ -299,7 +309,7 @@ class manage_RM(object):
                                  'verbose': False, 
                                  'validation_split': validation_split}
             self._multi_predic = True
-        elif self.RM_type == 'K_SC_ANN':
+        elif self.RM_type == 'KSK_ANN':
             def get_kwargs(kw, default):
                 if kw in kwargs:
                     return kwargs[kw]
@@ -318,10 +328,9 @@ class manage_RM(object):
             validation_split = get_kwargs('validation_split', 0.0)
             hidden_layer_sizes = get_kwargs('hidden_layer_sizes', (10,10))
             random_state = get_kwargs('random_state', self.random_seed)
-            dropout = get_kwargs('dropout', None)
             tf.random.set_random_seed(random_state)
             
-            def create_model(hidden_layer_sizes, N_in, activation, dropout, random_state,
+            def create_model(hidden_layer_sizes, N_in, activation, random_state,
                              N_out):
                 model = Sequential()
                 model.add(Dense(hidden_layer_sizes[0], 
@@ -330,8 +339,6 @@ class manage_RM(object):
                 for hidden_layer_size in hidden_layer_sizes[1:]:
                     model.add(Dense(hidden_layer_size, 
                                     activation=activation,))
-                    if dropout is not None:
-                        model.add(Dropout(dropout, seed=random_state))
                 model.add(Dense(N_out, 
                                 activation='linear'))
                 metrics = ['mse','mae']
@@ -343,7 +350,7 @@ class manage_RM(object):
             model = KerasRegressor(create_model, 
                                    hidden_layer_sizes = hidden_layer_sizes, 
                                    N_in = self.N_in,
-                                   activation=activation, dropout=dropout, 
+                                   activation=activation,  
                                    random_state=random_state,
                                    N_out=self.N_out)
             #if self.verbose:
@@ -353,7 +360,7 @@ class manage_RM(object):
                                  'batch_size': batch_size, 
                                  'verbose': False, 
                                  'validation_split': validation_split}
-            self._multi_predic = False # TBC ***
+            self._multi_predic = True # TBC ***
         else:
             raise ValueError('Unkown Regression method {}'.format(self.RM_type))
         if self.verbose:
@@ -615,6 +622,7 @@ class manage_RM(object):
             else:
                 y_trains = self.y_train.T
             for RM, y_train in zip(self.RMs, y_trains):
+                print(self.X_train, y_train)
                 RM.fit(self.X_train, y_train, **self.train_params)
                 train_score = self.score(RM, self.X_train, y_train)
                 self.train_score.append(train_score)
@@ -661,10 +669,17 @@ class manage_RM(object):
         if self.RMs is not None:
             for RM in self.RMs:
                 if self.RM_type[0:3] == 'SK_':
-                    loss_values = RM.loss_curve_
+                    self.loss_values = RM.loss_curve_
+                    val_loss_values = None
                 elif self.RM_type[0:2] == 'K_':
-                    loss_values = RM.history.history['loss']
-                ax.plot(loss_values)
+                    self.loss_values = RM.history.history['loss']
+                    try:
+                        val_loss_values = RM.history.history['val_loss']
+                    except:
+                        val_loss_values = None   
+                ax.plot(self.loss_values, label='Train loss')
+                if val_loss_values is not None:
+                    ax.plot(val_loss_values, label='Validation loss')
             ax.set_yscale('log')
         
     def predict(self, scoring=False, reduce_by=None):

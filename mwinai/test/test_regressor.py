@@ -216,3 +216,33 @@ def test_x3():
     plt.scatter(RM2.X_test, RM2.pred)
     plt.scatter(RM3.X_test, RM3.pred, alpha=0.05)
     return RM1, RM2,RM3    
+#%%
+def test_KSK():
+    def true_fun(x):
+        return np.cos(1.5 * np.pi * x)
+    # A random seed to reproduce the results
+    np.random.seed(0)
+    
+    # The number of points used to fit the function
+    n_samples = 3000
+    
+    # Noise to be added to the points used to fit the function
+    noise = 0.1
+    
+    # The training set: n_samples X points, with the noisy correspoing y  
+    X = np.sort(np.random.rand(n_samples))
+    y = true_fun(X) + np.random.randn(n_samples) * noise
+    X_train = X
+    y_train_true = y
+    
+    # The set of points to verify the fit quality
+    X_test = np.linspace(0, 1, 100)
+    y_test_true = true_fun(X_test)
+
+    RM = manage_RM(RM_type='KSK_ANN', X_train=X_train, y_train=y_train_true, scaling=True,
+                      verbose=True, random_seed=10)
+    RM.init_RM(hidden_layer_sizes=(4,), 
+               activation='tanh',
+               solver='adam')
+    RM.train_RM()
+    
