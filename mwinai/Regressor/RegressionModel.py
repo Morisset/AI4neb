@@ -23,30 +23,33 @@ from sklearn.decomposition import PCA
 # Keras
 try:
     import tensorflow as tf
-    from keras.models import Sequential, load_model
-    from keras.layers import Dense, Dropout
-    from keras.wrappers.scikit_learn import KerasRegressor
-    from keras import backend as K
-    from keras import initializers, regularizers
+    from tensorflow.keras.models import Sequential, load_model
+    from tensorflow.keras.layers import Dense, Dropout
+    from tensorflow.keras import backend as K
+    from tensorflow.keras import initializers, regularizers
+    from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
     TF_OK = True
+    keras_acces = 'tf.keras'
 except:
     try:
         import tensorflow as tf
-        from tensorflow.python.keras.models import Sequential, load_model
-        from tensorflow.python.keras.layers import Dense, Dropout
-        from tensorflow.python.keras import backend as K
-        from tensorflow.python.keras import initializers, regularizers
-        from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
+        from keras.models import Sequential, load_model
+        from keras.layers import Dense, Dropout
+        from keras.wrappers.scikit_learn import KerasRegressor
+        from keras import backend as K
+        from keras import initializers, regularizers
         TF_OK = True
+        keras_acces = 'keras'
     except:
         try:
             import tensorflow as tf
-            from tensorflow.keras.models import Sequential, load_model
-            from tensorflow.keras.layers import Dense, Dropout
-            from tensorflow.keras import backend as K
-            from tensorflow.keras import initializers, regularizers
-            from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
+            from tensorflow.python.keras.models import Sequential, load_model
+            from tensorflow.python.keras.layers import Dense, Dropout
+            from tensorflow.python.keras import backend as K
+            from tensorflow.python.keras import initializers, regularizers
+            from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
             TF_OK = True
+            keras_acces = 'tf.python.keras'
         except:
             TF_OK = False
             
@@ -57,7 +60,7 @@ class manage_RM(object):
     Manage Regression Model from SciKit learn and Tensorflow via Keras.
     """
     TF_OK = TF_OK
-    
+    keras_acces = keras_acces
     def __init__(self, RM_type = 'SK_ANN',
                  X_train=None, y_train=None, 
                  X_test=None, y_test=None,
