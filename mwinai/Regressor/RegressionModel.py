@@ -21,6 +21,7 @@ from sklearn.ensemble import AdaBoostRegressor
 from sklearn.decomposition import PCA
 
 # Keras
+keras_access= 'Not installed'
 try:
     import tensorflow as tf
     from tensorflow.keras.models import Sequential, load_model
@@ -29,7 +30,7 @@ try:
     from tensorflow.keras import initializers, regularizers
     from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
     TF_OK = True
-    keras_acces = 'tf.keras'
+    keras_access = 'tf.keras'
 except:
     try:
         import tensorflow as tf
@@ -39,7 +40,7 @@ except:
         from keras import backend as K
         from keras import initializers, regularizers
         TF_OK = True
-        keras_acces = 'keras'
+        keras_access = 'keras'
     except:
         try:
             import tensorflow as tf
@@ -49,7 +50,7 @@ except:
             from tensorflow.python.keras import initializers, regularizers
             from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
             TF_OK = True
-            keras_acces = 'tf.python.keras'
+            keras_access = 'tf.python.keras'
         except:
             TF_OK = False
             
@@ -60,7 +61,7 @@ class manage_RM(object):
     Manage Regression Model from SciKit learn and Tensorflow via Keras.
     """
     TF_OK = TF_OK
-    keras_acces = keras_acces
+    keras_access = keras_access
     def __init__(self, RM_type = 'SK_ANN',
                  X_train=None, y_train=None, 
                  X_test=None, y_test=None,
@@ -117,6 +118,7 @@ class manage_RM(object):
         self.pca = None
         self.train_scaled = False
         self.test_scaled = False
+        self.isfin = None
         self.N_y_bins = N_y_bins
         self.y_vects = y_vects
         self.min_discret=min_discret
@@ -556,6 +558,7 @@ class manage_RM(object):
             if self.verbose:
                 print('Train data scaled. {}{}'.format(log_str,pca_str))
         
+        self.y_test_unscaled = self.y_test
         log_str = ''
         pca_str = ''
         if (not self.test_scaled) or force:
@@ -605,7 +608,7 @@ class manage_RM(object):
             else:
                 y_train = self.y_train
             RM.fit(self.X_train, y_train, **self.train_params)
-            train_score = self.score(RM, self.X_train, y_train)
+            train_score = score(RM, self.X_train, y_train)
             self.train_score = [train_score]
             iter_str = '.'
             if self.verbose:
@@ -624,7 +627,7 @@ class manage_RM(object):
             for RM, y_train in zip(self.RMs, y_trains):
                 print(self.X_train, y_train)
                 RM.fit(self.X_train, y_train, **self.train_params)
-                train_score = self.score(RM, self.X_train, y_train)
+                train_score = score(RM, self.X_train, y_train)
                 self.train_score.append(train_score)
                 iter_str = '.'
                 if self.verbose:
@@ -646,20 +649,7 @@ class manage_RM(object):
         self.pred_ori = self._copy_None(self.pred)
         tmp = self.pred - np.expand_dims(self.pred.min(1), axis=1)
         self.pred_norm =  tmp / np.expand_dims(tmp.sum(1), axis=1)
-        
-    def score(self, RM, X, y_true):
-        """
-        (1 - u/v), where u is the residual sum of squares ((y_true - y_pred) ** 2).sum() 
-        and v is the total sum of squares ((y_true - y_true.mean()) ** 2).sum().
-        """
-        y_pred = RM.predict(X)
-        if y_pred.ndim == 2 and y_pred.shape[1] == 1:
-                y_pred = np.ravel(y_pred)
-        u = ((y_true - y_pred) ** 2).sum()
-        v = ((y_true - y_true.mean()) ** 2).sum()
-        
-        return 1 - u/v
-        
+                
     def plot_loss(self, ax=None):
         
         import matplotlib.pyplot as plt
@@ -684,7 +674,7 @@ class manage_RM(object):
         
     def predict(self, scoring=False, reduce_by=None):
         """
-        Compute the prediction usinf self.X_test
+        Compute the prediction using self.X_test
         Results are stored into self.pred
         if scoring, a score is computed comparing with self.y_test
         """
@@ -707,7 +697,7 @@ class manage_RM(object):
                 raise Exception('N_test {} != N_test_y {}'.format(self.N_test, self.N_test_y))
             if self._multi_predic:
                 try:
-                    self.predic_score = [RM.score(self.X_test, self.y_test) for RM in self.RMs]
+                    self.predic_score = [score(RM, self.X_test, self.y_test) for RM in self.RMs]
                 except:
                     self.predic_score = [np.nan for RM in self.RMs]
             else:
@@ -716,7 +706,7 @@ class manage_RM(object):
                 else:
                     y_tests = self.y_test.T
                 try:
-                    self.predic_score = [RM.score(self.X_test, y_test) for RM, y_test in zip(self.RMs, y_tests)]
+                    self.predic_score = [score(RM, self.X_test, y_test) for RM, y_test in zip(self.RMs, y_tests)]
                 except:
                     self.predic_score = [np.nan for RM, y_test in zip(self.RMs, y_tests)]
             if self.N_out != self.N_out_test:
@@ -789,7 +779,7 @@ class manage_RM(object):
         else:
             X_train, y_train = None, None
         if save_test:
-            X_test, y_test = self.X_test_unscaled, self.y_test
+            X_test, y_test = self.X_test_unscaled, self.y_test_unscaled
         else:
             X_test, y_test = None, None
         
@@ -909,6 +899,18 @@ class manage_RM(object):
             self.X_test_unscaled = self.X_test
             self.y_train_unscaled = self.y_train
         
+def score(RM, X, y_true):
+    """
+    (1 - u/v), where u is the residual sum of squares ((y_true - y_pred) ** 2).sum() 
+    and v is the total sum of squares ((y_true - y_true.mean()) ** 2).sum().
+    """
+    y_pred = RM.predict(X)
+    if y_pred.ndim == 2 and y_pred.shape[1] == 1:
+            y_pred = np.ravel(y_pred)
+    u = ((y_true - y_pred) ** 2).sum()
+    v = ((y_true - y_true.mean()) ** 2).sum()
+    
+    return 1 - u/v
                 
 #%%
 if __name__ == "__main__":
