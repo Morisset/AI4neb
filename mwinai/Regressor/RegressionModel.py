@@ -722,6 +722,19 @@ class manage_RM(object):
             self._norm_pred()
             if reduce_by == 'mean':
                 if len(self.N_y_bins) == 1:
+                    self.pred = np.dot(self.pred,self.y_vects)
+                else:
+                    self.pred = np.zeros((self.N_test, len(self.N_y_bins)))
+                    for i in np.arange(len(self.N_y_bins)):
+                        if i == 0:
+                            i_inf = 0
+                        else:
+                            i_inf = self.N_y_bins.cumsum()[i-1]
+                        i_sup = self.N_y_bins.cumsum()[i]
+                        self.pred[:,i] = np.dot(self.pred[:,i_inf:i_sup],self.y_vects[i])
+                print('Reducing y by mean')
+            elif reduce_by == 'mean_norm':
+                if len(self.N_y_bins) == 1:
                     self.pred = np.dot(self.pred_norm,self.y_vects)
                 else:
                     self.pred = np.zeros((self.N_test, len(self.N_y_bins)))
