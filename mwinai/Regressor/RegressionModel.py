@@ -860,6 +860,7 @@ class manage_RM(object):
             to_read = None
             read_k1 = False
             print('No mwinai file found for {}'.format(filename))
+            self.model_read = False
             return
         
         try:
@@ -890,6 +891,7 @@ class manage_RM(object):
                    self.random_seed, 
                    self.RMs) = RM_tuple
         else:
+            self.model_read = False
             print('!! ERROR. This version is not supported.')
         if read_k1:
             try:
@@ -897,6 +899,7 @@ class manage_RM(object):
                 if self.verbose:
                     print('RM loaded from {}.mwinai_k1'.format(filename))
             except:
+                self.model_read = False
                 print('!! ERROR reading {}.mwinai_k1'.format(filename))
                 
         self.discretized = False
@@ -911,6 +914,7 @@ class manage_RM(object):
             self.X_train_unscaled = self.X_train
             self.X_test_unscaled = self.X_test
             self.y_train_unscaled = self.y_train
+        self.model_read =True
         
 def score(RM, X, y_true):
     """
