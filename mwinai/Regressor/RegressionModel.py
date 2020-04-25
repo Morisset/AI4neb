@@ -54,6 +54,12 @@ except:
         except:
             TF_OK = False
             
+try:
+    import xgboost as xgb
+    XGB_OK = True
+except:
+    XGB_OK = False
+            
 RM_version = "0.17"
 #%%
 class manage_RM(object):
@@ -81,7 +87,8 @@ class manage_RM(object):
                  clear_session=False):
         """
         Object to manage Regression Model(s).
-            RM_type: can be "ANN", "SVM", "NuSVM", "BR", "AB" for now.
+            RM_type: can be 'SK_ANN', 'SK_ANN_Dis', 'SK_SVM', 'SK_NuSVM', 
+                    'SK_BR', 'SK_AB', 'K_ANN', 'K_ANN_Dis', 'KSK_ANN', 'XGB' for now.
             X_train and y_train: are training sets, input and output repectively.
             X_test and y_test: are used for predictions.
             scaling and use_log: may be applied to X_train and X_test.
@@ -363,6 +370,12 @@ class manage_RM(object):
                                  'verbose': False, 
                                  'validation_split': validation_split}
             self._multi_predic = True # TBC ***
+        elif self.RM_type == 'XGB':
+            if not XGB_OK:
+                raise ValueError('xgboost not installed')
+            for i in range(self.N_out):
+                self.RMs.append(xgb.XGBRegressor(random_state=self.random_seed, **kwargs))
+            self._multi_predic = False
         else:
             raise ValueError('Unkown Regression method {}'.format(self.RM_type))
         if self.verbose:
