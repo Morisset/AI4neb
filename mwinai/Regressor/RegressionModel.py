@@ -638,7 +638,6 @@ class manage_RM(object):
             else:
                 y_trains = self.y_train.T
             for RM, y_train in zip(self.RMs, y_trains):
-                print(self.X_train, y_train)
                 RM.fit(self.X_train, y_train, **self.train_params)
                 train_score = score(RM, self.X_train, y_train)
                 self.train_score.append(train_score)
