@@ -2,10 +2,10 @@ from setuptools import setup, find_packages
 
 with open("README.md", "r") as readme_file:
     readme = readme_file.read()
-from mwinai.version import __version__
+from ai4neb.version import __version__
 
 setup(
-    name="mwinai",
+    name="ai4neb",
     version=__version__,
     author="Christophe Morisset",
     author_email="Chris.Morisset@gmail.com",
