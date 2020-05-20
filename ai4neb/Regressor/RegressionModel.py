@@ -825,27 +825,27 @@ class manage_RM(object):
         
         if self.RM_type[0:3] == 'SK_': 
             to_save.append(self.RMs)
-            joblib.dump(to_save, filename+'.mwinai_sk')
+            joblib.dump(to_save, filename+'.ai4neb_sk')
             if self.verbose:
-                print('RM save to {}.mwinai_sk'.format(filename))
+                print('RM save to {}.ai4neb_sk'.format(filename))
         elif self.RM_type[0:2] == 'K_':
             to_save.append(None)
-            joblib.dump(to_save, filename+'.mwinai_k0')
+            joblib.dump(to_save, filename+'.ai4neb_k0')
             if self.verbose:
-                print('RM save to {}.mwinai_k0'.format(filename))
+                print('RM save to {}.ai4neb_k0'.format(filename))
             for i, RM in enumerate(self.RMs):
-                RM.save('{}.mwinai_k{}'.format(filename, i+1))
+                RM.save('{}.ai4neb_k{}'.format(filename, i+1))
                 if self.verbose:
-                    print('RM save to {}.mwinai_k{}'.format(filename, i+1))
+                    print('RM save to {}.ai4neb_k{}'.format(filename, i+1))
         elif self.RM_type == 'XGB':
             to_save.append(None)
-            joblib.dump(to_save, filename+'.mwinai_xgb0')
+            joblib.dump(to_save, filename+'.ai4neb_xgb0')
             if self.verbose:
-                print('RM save to {}.mwinai_xgb0'.format(filename))
+                print('RM save to {}.ai4neb_xgb0'.format(filename))
             for i, RM in enumerate(self.RMs):
-                RM.save_model('{}.mwinai_xgb{}'.format(filename, i+1))
+                RM.save_model('{}.ai4neb_xgb{}'.format(filename, i+1))
                 if self.verbose:
-                    print('RM save to {}.mwinai_xgb{}'.format(filename, i+1))
+                    print('RM save to {}.ai4neb_xgb{}'.format(filename, i+1))
         else:
            print('Do not know how to save {} machine'.format(self.RM_type))
         
@@ -871,18 +871,18 @@ class manage_RM(object):
         files = glob("{}.*".format(filename))
         
         format_to_read = None
-        if "{}.mwinai_sk".format(filename) in files:
-            to_read = "{}.mwinai_sk".format(filename)
+        if "{}.ai4neb_sk".format(filename) in files:
+            to_read = "{}.ai4neb_sk".format(filename)
             format_to_read = 'SK'
-        elif "{}.mwinai_k0".format(filename) in files: 
-            to_read = "{}.mwinai_k0".format(filename)
+        elif "{}.ai4neb_k0".format(filename) in files: 
+            to_read = "{}.ai4neb_k0".format(filename)
             format_to_read = 'K'
-        elif "{}.mwinai_xgb0".format(filename) in files: 
-            to_read = "{}.mwinai_xgb0".format(filename)
+        elif "{}.ai4neb_xgb0".format(filename) in files: 
+            to_read = "{}.ai4neb_xgb0".format(filename)
             format_to_read = 'XGB'
         else:
             to_read = None
-            print('No mwinai file found for {}'.format(filename))
+            print('No ai4neb file found for {}'.format(filename))
             self.model_read = False
             return
         
@@ -918,23 +918,23 @@ class manage_RM(object):
             print('!! ERROR. This version is not supported.')
         if format_to_read == 'K':
             try:
-                self.RMs = [load_model("{}.mwinai_k1".format(filename))]
+                self.RMs = [load_model("{}.ai4neb_k1".format(filename))]
                 if self.verbose:
-                    print('RM loaded from {}.mwinai_k1'.format(filename))
+                    print('RM loaded from {}.ai4neb_k1'.format(filename))
             except:
                 self.model_read = False
-                print('!! ERROR reading {}.mwinai_k1'.format(filename))
+                print('!! ERROR reading {}.ai4neb_k1'.format(filename))
         elif format_to_read == 'XGB':
             try:
                 self.RMs = []
                 for i in np.arange(self.N_out)+1:
                     self.RMs.append(xgb.Booster())
-                    self.RMs[i-1].load_model('Forward_{}.mwinai_xgb{}'.format(filename, i))
+                    self.RMs[i-1].load_model('Forward_{}.ai4neb_xgb{}'.format(filename, i))
                     if self.verbose:
-                        print('RM loaded from {}.mwinai_xgb{}'.format(filename, i+1))
+                        print('RM loaded from {}.ai4neb_xgb{}'.format(filename, i+1))
             except:
                 self.model_read = False
-                print('!! ERROR reading {}.mwinai_xgb1'.format(filename))
+                print('!! ERROR reading {}.ai4neb_xgb1'.format(filename))
                 
         self.discretized = False
         if self.N_y_bins is not None or self.y_vects is not None:
