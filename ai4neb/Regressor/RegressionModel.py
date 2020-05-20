@@ -54,6 +54,12 @@ except:
         except:
             TF_OK = False
             
+try:
+    import xgboost as xgb
+    XGB_OK = True
+except:
+    XGB_OK = False
+            
 RM_version = "0.17"
 #%%
 class manage_RM(object):
@@ -81,7 +87,8 @@ class manage_RM(object):
                  clear_session=False):
         """
         Object to manage Regression Model(s).
-            RM_type: can be "ANN", "SVM", "NuSVM", "BR", "AB" for now.
+            RM_type: can be 'SK_ANN', 'SK_ANN_Dis', 'SK_SVM', 'SK_NuSVM', 
+                    'SK_BR', 'SK_AB', 'K_ANN', 'K_ANN_Dis', 'KSK_ANN', 'XGB' for now.
             X_train and y_train: are training sets, input and output repectively.
             X_test and y_test: are used for predictions.
             scaling and use_log: may be applied to X_train and X_test.
@@ -363,6 +370,12 @@ class manage_RM(object):
                                  'verbose': False, 
                                  'validation_split': validation_split}
             self._multi_predic = True # TBC ***
+        elif self.RM_type == 'XGB':
+            if not XGB_OK:
+                raise ValueError('xgboost not installed')
+            for i in range(self.N_out):
+                self.RMs.append(xgb.XGBRegressor(random_state=self.random_seed, **kwargs))
+            self._multi_predic = False
         else:
             raise ValueError('Unkown Regression method {}'.format(self.RM_type))
         if self.verbose:
@@ -625,7 +638,6 @@ class manage_RM(object):
             else:
                 y_trains = self.y_train.T
             for RM, y_train in zip(self.RMs, y_trains):
-                print(self.X_train, y_train)
                 RM.fit(self.X_train, y_train, **self.train_params)
                 train_score = score(RM, self.X_train, y_train)
                 self.train_score.append(train_score)
@@ -825,6 +837,15 @@ class manage_RM(object):
                 RM.save('{}.mwinai_k{}'.format(filename, i+1))
                 if self.verbose:
                     print('RM save to {}.mwinai_k{}'.format(filename, i+1))
+        elif self.RM_type == 'XGB':
+            to_save.append(None)
+            joblib.dump(to_save, filename+'.mwinai_xgb0')
+            if self.verbose:
+                print('RM save to {}.mwinai_xgb0'.format(filename))
+            for i, RM in enumerate(self.RMs):
+                RM.save_model('{}.mwinai_xgb{}'.format(filename, i+1))
+                if self.verbose:
+                    print('RM save to {}.mwinai_xgb{}'.format(filename, i+1))
         else:
            print('Do not know how to save {} machine'.format(self.RM_type))
         
@@ -849,16 +870,18 @@ class manage_RM(object):
         """
         files = glob("{}.*".format(filename))
         
-   
+        format_to_read = None
         if "{}.mwinai_sk".format(filename) in files:
             to_read = "{}.mwinai_sk".format(filename)
-            read_k1 = False
+            format_to_read = 'SK'
         elif "{}.mwinai_k0".format(filename) in files: 
             to_read = "{}.mwinai_k0".format(filename)
-            read_k1 = True
+            format_to_read = 'K'
+        elif "{}.mwinai_xgb0".format(filename) in files: 
+            to_read = "{}.mwinai_xgb0".format(filename)
+            format_to_read = 'XGB'
         else:
             to_read = None
-            read_k1 = False
             print('No mwinai file found for {}'.format(filename))
             self.model_read = False
             return
@@ -893,7 +916,7 @@ class manage_RM(object):
         else:
             self.model_read = False
             print('!! ERROR. This version is not supported.')
-        if read_k1:
+        if format_to_read == 'K':
             try:
                 self.RMs = [load_model("{}.mwinai_k1".format(filename))]
                 if self.verbose:
@@ -901,6 +924,17 @@ class manage_RM(object):
             except:
                 self.model_read = False
                 print('!! ERROR reading {}.mwinai_k1'.format(filename))
+        elif format_to_read == 'XGB':
+            try:
+                self.RMs = []
+                for i in np.arange(self.N_out)+1:
+                    self.RMs.append(xgb.Booster())
+                    self.RMs[i-1].load_model('Forward_{}.mwinai_xgb{}'.format(filename, i))
+                    if self.verbose:
+                        print('RM loaded from {}.mwinai_xgb{}'.format(filename, i+1))
+            except:
+                self.model_read = False
+                print('!! ERROR reading {}.mwinai_xgb1'.format(filename))
                 
         self.discretized = False
         if self.N_y_bins is not None or self.y_vects is not None:
