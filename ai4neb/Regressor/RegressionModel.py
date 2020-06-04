@@ -11,14 +11,23 @@ import numpy as np
 import time
 import random
 from glob import glob
+
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, RobustScaler
-from sklearn.externals import joblib
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR,NuSVR 
 from sklearn.linear_model import BayesianRidge
 from sklearn.ensemble import AdaBoostRegressor
 from sklearn.decomposition import PCA
+try:
+    import joblib
+except:
+    try:
+        from sklearn.externals import joblib
+    except:
+        pass
+
+
 
 # Keras
 keras_access= 'Not installed'

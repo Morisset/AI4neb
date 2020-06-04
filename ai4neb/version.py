@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
 # mwinai version
 
-__version__="0.2.7b1"
+__version__="0.2.7"
