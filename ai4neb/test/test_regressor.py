@@ -6,7 +6,7 @@ Created on Thu Sep 12 16:01:37 2019
 @author: morisset
 """
 import numpy as np
-from mwinai import manage_RM
+from ai4neb import manage_RM
 #%%
 
 def test(func = 'sins'):
@@ -109,7 +109,7 @@ def test1():
     X_test = np.linspace(0,100,1000)
     hidden_layer_sizes=(50,)
     
-    RM1 = manage_RM(X_train=X, y_train=y, verbose=True, noise=noise, scaling=True,
+    RM1 = manage_RM(X_train=X, y_train=y, verbose=True, scaling=True,
                     RM_type='Keras')
     RM1.init_RM(max_iter=200000, tol=0.0000001, solver=solver, activation=activation,
                 hidden_layer_sizes=hidden_layer_sizes)

@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
-# mwinai version
+# ai4neb version
 
-__version__="0.2.7"
+__version__="0.2.8b1"

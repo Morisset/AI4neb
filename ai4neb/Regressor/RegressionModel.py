@@ -27,8 +27,6 @@ except:
     except:
         pass
 
-
-
 # Keras
 keras_access= 'Not installed'
 try:
