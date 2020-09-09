@@ -16,8 +16,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, RobustScaler
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR,NuSVR 
-from sklearn.linear_model import BayesianRidge
-from sklearn.ensemble import AdaBoostRegressor
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.linear_model import BayesianRidge, SGDRegressor
+from sklearn.ensemble import AdaBoostRegressor, RandomForestRegressor, GradientBoostingRegressor
 from sklearn.decomposition import PCA
 try:
     import joblib
@@ -201,12 +202,12 @@ class manage_RM(object):
         else:
             return len(v)
         
-    def _copy_None(self, v):
+    def _copy_None(self, v, add_dim=True):
         if v is None:
             to_return = None
         else:
             to_return = v.copy()
-            if np.ndim(v) == 1:
+            if np.ndim(v) == 1 and add_dim:
                 to_return = np.expand_dims(to_return, axis=1)
         return to_return
     
@@ -219,25 +220,36 @@ class manage_RM(object):
         """
         self.RMs = []
         self.train_params = {}
+        self._multi_predic = False
         if self.RM_type in ('SK_ANN', 'SK_ANN_Dis'):
             self.RMs = [MLPRegressor(random_state=self.random_seed, **kwargs)]
             self._multi_predic = True
         elif self.RM_type == 'SK_SVM':
             for i in range(self.N_out):
                 self.RMs.append(SVR(**kwargs))
-            self._multi_predic = False
         elif self.RM_type == 'SK_NuSVM':
             for i in range(self.N_out):
                 self.RMs.append(NuSVR(**kwargs))
-            self._multi_predic = False
         elif self.RM_type == 'SK_BR':
             for i in range(self.N_out):
                 self.RMs.append(BayesianRidge(**kwargs))
-            self._multi_predic = False
         elif self.RM_type == 'SK_AB':
             for i in range(self.N_out):
                 self.RMs.append(AdaBoostRegressor(random_state=self.random_seed,**kwargs))
-            self._multi_predic = False
+        elif self.RM_type == 'SK_GBR':
+            for i in range(self.N_out):
+                self.RMs.append(GradientBoostingRegressor(random_state=self.random_seed,**kwargs))
+        elif self.RM_type == 'SK_GPR':
+            for i in range(self.N_out):
+                self.RMs.append(GaussianProcessRegressor(random_state=self.random_seed,**kwargs))
+            self._multi_predic = True
+        elif self.RM_type == 'SK_SGDR':
+            for i in range(self.N_out):
+                self.RMs.append(SGDRegressor(random_state=self.random_seed,**kwargs))
+        elif self.RM_type == 'SK_RFR':
+            for i in range(self.N_out):
+                self.RMs.append(RandomForestRegressor(random_state=self.random_seed,**kwargs))
+            self._multi_predic = True
         elif self.RM_type in ("K_ANN", "K_ANN_Dis"):
             if not TF_OK:
                 raise ValueError('Tensorflow not installed, Keras RM_type not available')
@@ -382,7 +394,6 @@ class manage_RM(object):
                 raise ValueError('xgboost not installed')
             for i in range(self.N_out):
                 self.RMs.append(xgb.XGBRegressor(random_state=self.random_seed, **kwargs))
-            self._multi_predic = False
         else:
             raise ValueError('Unkown Regression method {}'.format(self.RM_type))
         if self.verbose:
@@ -641,7 +652,8 @@ class manage_RM(object):
             if self.y_train.ndim == 1:
                 y_trains = (self.y_train,)
             elif self.y_train.ndim == 2 and self.y_train.shape[1] == 1:
-                y_trains = np.ravel(self.y_train)
+#                y_trains = np.ravel(self.y_train)
+                y_trains = self.y_train.T
             else:
                 y_trains = self.y_train.T
             for RM, y_train in zip(self.RMs, y_trains):
