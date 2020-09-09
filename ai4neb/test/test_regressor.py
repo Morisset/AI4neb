@@ -7,6 +7,97 @@ Created on Thu Sep 12 16:01:37 2019
 """
 import numpy as np
 from ai4neb import manage_RM
+
+#%%
+
+def get_sets(func='sins', n_samples=200, verbose=True):
+    n_samples=200
+    if func == 'sins':
+        X1 = np.random.randn(n_samples)
+        y1 = np.sin(X1) + np.cos(X1) + 0.1*np.random.randn(n_samples)
+        X2 = np.random.randn(n_samples, 2)
+        y2 = np.array([np.sin(X2[:,0]) + np.cos(X2[:,1]) + 0.1*np.random.randn(n_samples),
+             np.sin(X2[:,0])**2 + np.cos(X2[:,1])**2 + 0.1*np.random.randn(n_samples)]).T
+    elif func == 'x24':
+        y1 = np.random.uniform(-5, 5, n_samples)
+        X1 = y1**2
+        y2 = np.random.uniform(-5, 5, (n_samples, 2))
+        X2 = np.array([y1**2, y1**4]).T
+        
+    if verbose:
+        print('X1 shape:', X1.shape)
+        print('X2 shape:', X2.shape)
+        print('y1 shape:', y1.shape)
+        print('y2 shape:', y2.shape)
+    return X1, y1, X2, y2
+
+#%%
+
+def test_type(RM_type='SK_ANN'):
+    
+    X1, y1, X2, y2 = get_sets(func='x24', verbose=False)
+
+    N_y_bins = None
+    y_vects = None #np.linspace(-5,5,41)
+    if False:
+        N_y_bins = 41
+        y_vects = None
+    
+    reduce_by = None#'mean'
+    split_ratio=0.3
+    verbose = False
+    try:
+        print('-----')
+        print
+        RM = manage_RM(X_train=X1, y_train=y1, split_ratio=split_ratio, verbose=verbose, 
+                        N_y_bins=N_y_bins, y_vects=y_vects, RM_type=RM_type)
+        RM.init_RM()
+        RM.train_RM()
+        RM.predict()
+        print('X1, y1 passed, ', RM.N_train, RM.N_in, RM.N_train_y, RM.N_out)
+    except:
+        print('!!! X1, y1 not passed')
+    try:
+        print('-----')
+        print
+        RM = manage_RM(X_train=X2, y_train=y1, split_ratio=split_ratio, verbose=verbose, 
+                        N_y_bins=N_y_bins, y_vects=y_vects, RM_type=RM_type)
+        RM.init_RM()
+        RM.train_RM()
+        RM.predict()
+        print('X2, y1 passed, ', RM.N_train, RM.N_in, RM.N_train_y, RM.N_out)
+    except:
+        print('!!! X2, y1 not passed')
+    try:
+        print('-----')
+        print
+        RM = manage_RM(X_train=X1, y_train=y2, split_ratio=split_ratio, verbose=verbose, 
+                        N_y_bins=N_y_bins, y_vects=y_vects, RM_type=RM_type)
+        RM.init_RM()
+        RM.train_RM()
+        RM.predict()
+        print('X1, y2 passed, ', RM.N_train, RM.N_in, RM.N_train_y, RM.N_out)
+    except:
+        print('!!! X1, y2 not passed')
+    try:
+        print('-----')
+        print
+        RM = manage_RM(X_train=X2, y_train=y2, split_ratio=split_ratio, verbose=verbose, 
+                        N_y_bins=N_y_bins, y_vects=y_vects, RM_type=RM_type)
+        RM.init_RM()
+        RM.train_RM()
+        RM.predict()
+        print('X2, y2 passed, ', RM.N_train, RM.N_in, RM.N_train_y, RM.N_out)
+    except:
+        print('!!! X2, y2 not passed')
+
+#%%
+def test_multi_types():
+    
+    for RM_type in ('SK_ANN', 'SK_SVM', 'SK_NuSVM', 'SK_BR', 'SK_AB', 'SK_GBR', 'SK_GPR', 'SK_SGDR', 'SK_RFR', 'K_ANN'):
+        print('+++++++++++++++++  ', RM_type, '  +++++++++++++++++')
+        test_type(RM_type)
+    
 #%%
 
 def test(func = 'sins'):
