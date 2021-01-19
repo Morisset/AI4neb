@@ -227,12 +227,14 @@ class manage_RM(object):
             self.RMs = [MLPRegressor(random_state=self.random_seed, **kwargs)]
             self._multi_predic = True
         elif self.RM_type == 'Poly':
-            if degree in kwargs:
+            self.poly = []
+            if "degree" in kwargs:
                 degree = kwargs['degree']
             else:
                 degree = 2
-            self.poly = PolynomialFeatures(degree=degree)
-            self.RMs = [LinearRegression()]
+            for i in range(self.N_out):
+                self.poly.append(PolynomialFeatures(degree=degree))
+                self.RMs.append(LinearRegression())
         elif self.RM_type == 'SK_SVM':
             for i in range(self.N_out):
                 self.RMs.append(SVR(**kwargs))
@@ -648,13 +650,9 @@ class manage_RM(object):
                 y_train = np.ravel(self.y_train)
             else:
                 y_train = self.y_train
-            if self.RM_type == 'Poly':
-                to_fit = self.poly.fit_transform(self.X_train)
-            else:
-                to_fit = self.X_train
-            history = RM.fit(to_fit, y_train, **self.train_params)
+            history = RM.fit(self.X_train, y_train, **self.train_params)
             self.history = [history]
-            train_score = score(RM, to_fit, y_train)
+            train_score = score(RM, self.X_train, y_train)
             self.train_score = [train_score]
             iter_str = '.'
             if self.verbose:
@@ -671,10 +669,16 @@ class manage_RM(object):
                 y_trains = self.y_train.T
             else:
                 y_trains = self.y_train.T
+            i_RM = 0
             for RM, y_train in zip(self.RMs, y_trains):
-                history = RM.fit(self.X_train, y_train, **self.train_params)
+                if self.RM_type == 'Poly':
+                    to_fit = self.poly[i_RM].fit_transform(self.X_train)
+                else:
+                    to_fit = self.X_train
+                i_RM += 1
+                history = RM.fit(to_fit, y_train, **self.train_params)
                 self.history.append(history)
-                train_score = score(RM, self.X_train, y_train)
+                train_score = score(RM, to_fit, y_train)
                 self.train_score.append(train_score)
                 iter_str = '.'
                 if self.verbose:
@@ -733,16 +737,15 @@ class manage_RM(object):
         if not self.test_scaled and self.verbose:
             print('WARNING: test data not scaled')
         if self._multi_predic:
-            if self.RM_type == 'Poly':
-                to_predict = self.poly.fit_transform(self.X_test)
-            else:
-                to_predict = self.X_train
-            
-            self.pred = self.RMs[0].predict(to_predict)
+            self.pred = self.RMs[0].predict(self.X_train)
         else:
             self.pred = []
-            for RM in self.RMs:
-                self.pred.append(RM.predict(self.X_test))
+            for i_RM, RM in enumerate(self.RMs):
+                if self.RM_type == 'Poly':
+                    to_predict = self.poly[i_RM].fit_transform(self.X_test)
+                else:
+                    to_predict = self.X_test
+                self.pred.append(RM.predict(to_predict))
             self.pred = np.array(self.pred).T
         if scoring:
             if self.N_test != self.N_test_y:
