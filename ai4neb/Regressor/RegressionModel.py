@@ -13,13 +13,15 @@ import random
 from glob import glob
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, RobustScaler
+from sklearn.preprocessing import StandardScaler, RobustScaler, PolynomialFeatures
 from sklearn.neural_network import MLPRegressor
 from sklearn.svm import SVR,NuSVR 
+from sklearn.kernel_ridge import KernelRidge
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.linear_model import BayesianRidge, SGDRegressor
+from sklearn.linear_model import BayesianRidge, SGDRegressor, LinearRegression
 from sklearn.ensemble import AdaBoostRegressor, RandomForestRegressor, GradientBoostingRegressor
 from sklearn.decomposition import PCA
+from sklearn.utils import parallel_backend
 try:
     import joblib
 except:
@@ -224,12 +226,22 @@ class manage_RM(object):
         if self.RM_type in ('SK_ANN', 'SK_ANN_Dis'):
             self.RMs = [MLPRegressor(random_state=self.random_seed, **kwargs)]
             self._multi_predic = True
+        elif self.RM_type == 'Poly':
+            if degree in **kwargs:
+                degree = **kwargs['degree']
+            else:
+                degree = 2
+            self.poly = PolynomialFeatures(degree=degree)
+            self.RMs = [LinearRegression()]
         elif self.RM_type == 'SK_SVM':
             for i in range(self.N_out):
                 self.RMs.append(SVR(**kwargs))
         elif self.RM_type == 'SK_NuSVM':
             for i in range(self.N_out):
                 self.RMs.append(NuSVR(**kwargs))
+        elif self.RM_type == 'SK_KRR':
+            for i in range(self.N_out):
+                self.RMs.append(KernelRidge(**kwargs))
         elif self.RM_type == 'SK_BR':
             for i in range(self.N_out):
                 self.RMs.append(BayesianRidge(**kwargs))
@@ -277,19 +289,22 @@ class manage_RM(object):
             L2 = get_kwargs('L2', 0.)
             tf.compat.v1.random.set_random_seed(random_state)
             model = Sequential()
-            model.add(Dense(hidden_layer_sizes[0], 
-                            input_dim=self.N_in, 
-                            kernel_initializer=kernel_initializer,
-                            bias_initializer=bias_initializer,
-                            activation=activation,
-                            kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
             if dropout is not None:
+                d1 = 0.0
+            else:
                 if type(dropout) in (type(()), type([])):
                     d1 = dropout[0]
                 else:
                     d1 = dropout
-                if d1 != 0.0:
-                    model.add(Dropout(d1, seed=random_state))
+            if d1 != 0.0:
+                    model.add(Dropout(d1, seed=random_state, input_shape=(hidden_layer_sizes[0],)))
+            else:
+                model.add(Dense(hidden_layer_sizes[0], 
+                                input_dim=self.N_in, 
+                                kernel_initializer=kernel_initializer,
+                                bias_initializer=bias_initializer,
+                                activation=activation,
+                                kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
             for i_hl, hidden_layer_size in enumerate(hidden_layer_sizes[1:]):
                 model.add(Dense(hidden_layer_size, 
                                 activation=activation, 
@@ -313,12 +328,6 @@ class manage_RM(object):
                 model.compile(loss='mse', 
                               optimizer=optimizer, 
                               metrics=metrics)
-                self.RMs = [model]
-                self.train_params = {'epochs': epochs, 
-                                     'batch_size': batch_size, 
-                                     'verbose': False, 
-                                     'validation_split': validation_split}
-                self._multi_predic = True
             elif self.RM_type == 'K_ANN_Dis':
                 model.add(Dense(self.N_out, 
                                 activation='softmax', 
@@ -441,7 +450,7 @@ class manage_RM(object):
             self.minmax = np.percentile(self.y_train, (2.5, 97.5), axis=0)
             self.deltas = self.minmax[1,:] - self.minmax[0,:]
             if self.N_out == 1:
-                self.y_vects = np.linspace(self.minmax[0], self.minmax[1], self.N_y_bins)
+                self.y_vects = np.linspace(self.minmax[0], self.minmax[1], self.N_y_bins[0])
             else:
                 self.y_vects = []
                 for i in np.arange(self.N_out):
@@ -615,7 +624,7 @@ class manage_RM(object):
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
 
-    def train_RM(self):
+    def train_RM(self, p_backend='loky'):
         """
         Training the models.
         """
@@ -624,6 +633,7 @@ class manage_RM(object):
             if self.verbose:
                 print('WARNING: training data not scaled')
         self.train_score = []
+        self.history = []
         if self.N_train != self.N_train_y:
             raise Exception('N_train {} != N_train_y {}'.format(self.N_train,
                             self.N_train_y))
@@ -638,8 +648,13 @@ class manage_RM(object):
                 y_train = np.ravel(self.y_train)
             else:
                 y_train = self.y_train
-            RM.fit(self.X_train, y_train, **self.train_params)
-            train_score = score(RM, self.X_train, y_train)
+            if self.RM_type == 'Poly':
+                to_fit = self.poly.fit_transform(self.X_train)
+            else:
+                to_fit = self.X_train
+            history = RM.fit(to_fit, y_train, **self.train_params)
+            self.history = [history]
+            train_score = score(RM, to_fit, y_train)
             self.train_score = [train_score]
             iter_str = '.'
             if self.verbose:
@@ -657,7 +672,8 @@ class manage_RM(object):
             else:
                 y_trains = self.y_train.T
             for RM, y_train in zip(self.RMs, y_trains):
-                RM.fit(self.X_train, y_train, **self.train_params)
+                history = RM.fit(self.X_train, y_train, **self.train_params)
+                self.history.append(history)
                 train_score = score(RM, self.X_train, y_train)
                 self.train_score.append(train_score)
                 iter_str = '.'
@@ -681,7 +697,7 @@ class manage_RM(object):
         tmp = self.pred - np.expand_dims(self.pred.min(1), axis=1)
         self.pred_norm =  tmp / np.expand_dims(tmp.sum(1), axis=1)
                 
-    def plot_loss(self, ax=None):
+    def plot_loss(self, ax=None, i_RM=0):
         
         import matplotlib.pyplot as plt
         
@@ -693,9 +709,9 @@ class manage_RM(object):
                     self.loss_values = RM.loss_curve_
                     val_loss_values = None
                 elif self.RM_type[0:2] == 'K_':
-                    self.loss_values = RM.history.history['loss']
+                    self.loss_values = self.history[i_RM].history['loss']
                     try:
-                        val_loss_values = RM.history.history['val_loss']
+                        val_loss_values = self.history[i_RM].history['val_loss']
                     except:
                         val_loss_values = None   
                 ax.plot(self.loss_values, label='Train loss')
@@ -717,7 +733,12 @@ class manage_RM(object):
         if not self.test_scaled and self.verbose:
             print('WARNING: test data not scaled')
         if self._multi_predic:
-            self.pred = self.RMs[0].predict(self.X_test)
+            if self.RM_type == 'Poly':
+                to_predict = self.poly.fit_transform(self.X_test)
+            else:
+                to_predict = self.X_train
+            
+            self.pred = self.RMs[0].predict(to_predict)
         else:
             self.pred = []
             for RM in self.RMs:
@@ -728,7 +749,7 @@ class manage_RM(object):
                 raise Exception('N_test {} != N_test_y {}'.format(self.N_test, self.N_test_y))
             if self._multi_predic:
                 try:
-                    self.predic_score = [score(RM, self.X_test, self.y_test) for RM in self.RMs]
+                    self.predic_score = score(self.RMs[0], to_predict, self.y_test, axis=0)  #[score(RM, self.X_test, self.y_test) for RM in self.RMs]
                 except:
                     self.predic_score = [np.nan for RM in self.RMs]
             else:
@@ -751,44 +772,33 @@ class manage_RM(object):
             if self.N_y_bins is None:
                 raise Exception('Can not reduce if N_y_bins is not defined.')
             self._norm_pred()
+            
+            if len(self.N_y_bins) == 1:
+                self.pred_mean = np.dot(self.pred,self.y_vects)
+                self.pred_mean_norm = np.dot(self.pred_norm,self.y_vects)
+                self.pred_max = self.y_vects[np.argmax(self.pred_norm, 1)]
+            else:
+                self.pred_mean = np.zeros((self.N_test, len(self.N_y_bins)))
+                self.pred_mean_norm = np.zeros((self.N_test, len(self.N_y_bins)))
+                self.pred_max = np.zeros((self.N_test, len(self.N_y_bins)))
+                for i in np.arange(len(self.N_y_bins)):
+                    if i == 0:
+                        i_inf = 0
+                    else:
+                        i_inf = self.N_y_bins.cumsum()[i-1]
+                    i_sup = self.N_y_bins.cumsum()[i]
+                    self.pred_mean[:,i] = np.dot(self.pred[:,i_inf:i_sup],self.y_vects[i])
+                    self.pred_mean_norm[:,i] = np.dot(self.pred_norm[:,i_inf:i_sup],self.y_vects[i])
+                    self.pred_max[:,i] = self.y_vects[i, np.argmax(self.pred_norm[:,i_inf:i_sup], 1)]
+            
             if reduce_by == 'mean':
-                if len(self.N_y_bins) == 1:
-                    self.pred = np.dot(self.pred,self.y_vects)
-                else:
-                    self.pred = np.zeros((self.N_test, len(self.N_y_bins)))
-                    for i in np.arange(len(self.N_y_bins)):
-                        if i == 0:
-                            i_inf = 0
-                        else:
-                            i_inf = self.N_y_bins.cumsum()[i-1]
-                        i_sup = self.N_y_bins.cumsum()[i]
-                        self.pred[:,i] = np.dot(self.pred[:,i_inf:i_sup],self.y_vects[i])
+                self.pred = self.pred_mean
                 print('Reducing y by mean')
             elif reduce_by == 'mean_norm':
-                if len(self.N_y_bins) == 1:
-                    self.pred = np.dot(self.pred_norm,self.y_vects)
-                else:
-                    self.pred = np.zeros((self.N_test, len(self.N_y_bins)))
-                    for i in np.arange(len(self.N_y_bins)):
-                        if i == 0:
-                            i_inf = 0
-                        else:
-                            i_inf = self.N_y_bins.cumsum()[i-1]
-                        i_sup = self.N_y_bins.cumsum()[i]
-                        self.pred[:,i] = np.dot(self.pred_norm[:,i_inf:i_sup],self.y_vects[i])
+                self.pred = self.pred_mean_norm
                 print('Reducing y by mean')
             elif reduce_by == 'max':
-                if len(self.N_y_bins) == 1:
-                    self.pred = self.y_vects[np.argmax(self.pred_norm, 1)]
-                else:
-                    self.pred = np.zeros((self.N_test, len(self.N_y_bins)))
-                    for i in np.arange(len(self.N_y_bins)):
-                        if i == 0:
-                            i_inf = 0
-                        else:
-                            i_inf = self.N_y_bins.cumsum()[i-1]
-                        i_sup = self.N_y_bins.cumsum()[i]
-                        self.pred[:,i] = self.y_vects[i, np.argmax(self.pred_norm[:,i_inf:i_sup], 1)]
+                self.pred = self.pred_max
                 print('Reducing y by max')
         end = time.time()
         if self.verbose:
@@ -969,7 +979,7 @@ class manage_RM(object):
             self.y_train_unscaled = self.y_train
         self.model_read =True
         
-def score(RM, X, y_true):
+def score(RM, X, y_true, axis=None):
     """
     (1 - u/v), where u is the residual sum of squares ((y_true - y_pred) ** 2).sum() 
     and v is the total sum of squares ((y_true - y_true.mean()) ** 2).sum().
@@ -977,8 +987,8 @@ def score(RM, X, y_true):
     y_pred = RM.predict(X)
     if y_pred.ndim == 2 and y_pred.shape[1] == 1:
             y_pred = np.ravel(y_pred)
-    u = ((y_true - y_pred) ** 2).sum()
-    v = ((y_true - y_true.mean()) ** 2).sum()
+    u = ((y_true - y_pred) ** 2).sum(axis=axis)
+    v = ((y_true - y_true.mean()) ** 2).sum(axis=axis)
     
     return 1 - u/v
                 
