@@ -227,8 +227,8 @@ class manage_RM(object):
             self.RMs = [MLPRegressor(random_state=self.random_seed, **kwargs)]
             self._multi_predic = True
         elif self.RM_type == 'Poly':
-            if degree in **kwargs:
-                degree = **kwargs['degree']
+            if degree in kwargs:
+                degree = kwargs['degree']
             else:
                 degree = 2
             self.poly = PolynomialFeatures(degree=degree)
