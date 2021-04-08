@@ -299,7 +299,6 @@ class manage_RM(object):
                 else:
                     d1 = dropout
             if d1 != 0.0:
-                print(dropout, d1)
                 model.add(Dropout(d1, seed=random_state, input_shape=(hidden_layer_sizes[0],)))
             model.add(Dense(hidden_layer_sizes[0], 
                             input_dim=self.N_in, 
@@ -539,7 +538,8 @@ class manage_RM(object):
             return None, None
         else:
             n_keys = X.shape[1]
-            X = np.log10(X)
+            with np.errstate(invalid='ignore', divide='ignore'):
+                X = np.log10(X)
             self.isfin = np.isfinite(X).sum(1) == n_keys
             X = X[self.isfin]
             if y is not None:
@@ -554,6 +554,7 @@ class manage_RM(object):
             else:
                 self.scaler = StandardScaler()
             self.scaler.fit(self.X_train)
+        # ToDO: PCA needs to be applied to scaled data. This is not the case.
         if self.pca_N != 0:
             self.pca = PCA(n_components=self.pca_N)
             self.pca.fit(self.X_train)
@@ -650,6 +651,7 @@ class manage_RM(object):
                 y_train = np.ravel(self.y_train)
             else:
                 y_train = self.y_train
+            print(self.X_train.shape, y_train.shape)
             history = RM.fit(self.X_train, y_train, **self.train_params)
             self.history = [history]
             train_score = score(RM, self.X_train, y_train)
