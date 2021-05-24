@@ -651,7 +651,6 @@ class manage_RM(object):
                 y_train = np.ravel(self.y_train)
             else:
                 y_train = self.y_train
-            print(self.X_train.shape, y_train.shape)
             history = RM.fit(self.X_train, y_train, **self.train_params)
             self.history = [history]
             train_score = score(RM, self.X_train, y_train)
@@ -962,10 +961,10 @@ class manage_RM(object):
             try:
                 self.RMs = []
                 for i in np.arange(self.N_out)+1:
-                    self.RMs.append(xgb.Booster())
-                    self.RMs[i-1].load_model('Forward_{}.ai4neb_xgb{}'.format(filename, i))
+                    self.RMs.append(xgb.XGBRegressor())
+                    self.RMs[i-1].load_model('{}.ai4neb_xgb{}'.format(filename, i))
                     if self.verbose:
-                        print('RM loaded from {}.ai4neb_xgb{}'.format(filename, i+1))
+                        print('RM loaded from {}.ai4neb_xgb{}'.format(filename, i))
             except:
                 self.model_read = False
                 print('!! ERROR reading {}.ai4neb_xgb1'.format(filename))
