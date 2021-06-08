@@ -702,7 +702,7 @@ class manage_RM(object):
         tmp = self.pred - np.expand_dims(self.pred.min(1), axis=1)
         self.pred_norm =  tmp / np.expand_dims(tmp.sum(1), axis=1)
                 
-    def plot_loss(self, ax=None, i_RM=0):
+    def plot_loss(self, ax=None, i_RM=0, **kwargs):
         
         import matplotlib.pyplot as plt
         
@@ -719,7 +719,7 @@ class manage_RM(object):
                         val_loss_values = self.history[i_RM].history['val_loss']
                     except:
                         val_loss_values = None   
-                ax.plot(self.loss_values, label='Train loss')
+                ax.plot(self.loss_values, label='Train loss', **kwargs)
                 if val_loss_values is not None:
                     ax.plot(val_loss_values, label='Validation loss')
             ax.set_yscale('log')
