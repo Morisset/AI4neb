@@ -291,6 +291,12 @@ class manage_RM(object):
             L2 = get_kwargs('L2', 0.)
             tf.compat.v1.random.set_random_seed(random_state)
             model = Sequential()
+            model.add(Dense(hidden_layer_sizes[0], 
+                            input_dim=self.N_in, 
+                            kernel_initializer=kernel_initializer,
+                            bias_initializer=bias_initializer,
+                            activation=activation,
+                            kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
             if dropout is None:
                 d1 = 0.0
             else:
@@ -300,12 +306,6 @@ class manage_RM(object):
                     d1 = dropout
             if d1 != 0.0:
                 model.add(Dropout(d1, seed=random_state, input_shape=(hidden_layer_sizes[0],)))
-            model.add(Dense(hidden_layer_sizes[0], 
-                            input_dim=self.N_in, 
-                            kernel_initializer=kernel_initializer,
-                            bias_initializer=bias_initializer,
-                            activation=activation,
-                            kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
             for i_hl, hidden_layer_size in enumerate(hidden_layer_sizes[1:]):
                 model.add(Dense(hidden_layer_size, 
                                 activation=activation, 
