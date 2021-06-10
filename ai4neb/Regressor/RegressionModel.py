@@ -274,12 +274,9 @@ class manage_RM(object):
                     return default
             activation = get_kwargs('activation', 'relu')
             kernel_initializer = get_kwargs('kernel_initializer', 
+                                            initializers.glorot_uniform(seed=self.random_seed))                
+            bias_initializer = get_kwargs('bias_initializer', 
                                             initializers.glorot_uniform(seed=self.random_seed))
-            if self.random_seed is None:
-                bias_initializer = 'zeros'
-            else:
-                cst = np.random.rand()
-                bias_initializer = initializers.Constant(0.1 + 0.05+cst)
             optimizer = get_kwargs('optimizer', get_kwargs('solver', 'adam'))
             epochs = get_kwargs('epochs', 100)
             batch_size = get_kwargs('batch_size', None)
@@ -356,10 +353,8 @@ class manage_RM(object):
             activation = get_kwargs('activation', 'relu')
             kernel_initializer = get_kwargs('kernel_initializer', 
                                             initializers.glorot_uniform(seed=self.random_seed))
-            if self.random_seed is None:
-                bias_initializer = 'zeroes'
-            else:
-                bias_initializer = initializers.Constant(0.1)
+            bias_initializer = get_kwargs('bias_initializer', 
+                                            initializers.glorot_uniform(seed=self.random_seed))
             optimizer = get_kwargs('optimizer', get_kwargs('solver', 'adam'))
             epochs = get_kwargs('epochs', 1)
             batch_size = get_kwargs('batch_size', None)
