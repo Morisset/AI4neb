@@ -274,12 +274,9 @@ class manage_RM(object):
                     return default
             activation = get_kwargs('activation', 'relu')
             kernel_initializer = get_kwargs('kernel_initializer', 
+                                            initializers.glorot_uniform(seed=self.random_seed))                
+            bias_initializer = get_kwargs('bias_initializer', 
                                             initializers.glorot_uniform(seed=self.random_seed))
-            if self.random_seed is None:
-                bias_initializer = 'zeros'
-            else:
-                cst = np.random.rand()
-                bias_initializer = initializers.Constant(0.1 + 0.05+cst)
             optimizer = get_kwargs('optimizer', get_kwargs('solver', 'adam'))
             epochs = get_kwargs('epochs', 100)
             batch_size = get_kwargs('batch_size', None)
@@ -291,6 +288,12 @@ class manage_RM(object):
             L2 = get_kwargs('L2', 0.)
             tf.compat.v1.random.set_random_seed(random_state)
             model = Sequential()
+            model.add(Dense(hidden_layer_sizes[0], 
+                            input_dim=self.N_in, 
+                            kernel_initializer=kernel_initializer,
+                            bias_initializer=bias_initializer,
+                            activation=activation,
+                            kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
             if dropout is None:
                 d1 = 0.0
             else:
@@ -300,12 +303,6 @@ class manage_RM(object):
                     d1 = dropout
             if d1 != 0.0:
                 model.add(Dropout(d1, seed=random_state, input_shape=(hidden_layer_sizes[0],)))
-            model.add(Dense(hidden_layer_sizes[0], 
-                            input_dim=self.N_in, 
-                            kernel_initializer=kernel_initializer,
-                            bias_initializer=bias_initializer,
-                            activation=activation,
-                            kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
             for i_hl, hidden_layer_size in enumerate(hidden_layer_sizes[1:]):
                 model.add(Dense(hidden_layer_size, 
                                 activation=activation, 
@@ -356,10 +353,8 @@ class manage_RM(object):
             activation = get_kwargs('activation', 'relu')
             kernel_initializer = get_kwargs('kernel_initializer', 
                                             initializers.glorot_uniform(seed=self.random_seed))
-            if self.random_seed is None:
-                bias_initializer = 'zeroes'
-            else:
-                bias_initializer = initializers.Constant(0.1)
+            bias_initializer = get_kwargs('bias_initializer', 
+                                            initializers.glorot_uniform(seed=self.random_seed))
             optimizer = get_kwargs('optimizer', get_kwargs('solver', 'adam'))
             epochs = get_kwargs('epochs', 1)
             batch_size = get_kwargs('batch_size', None)
@@ -702,7 +697,7 @@ class manage_RM(object):
         tmp = self.pred - np.expand_dims(self.pred.min(1), axis=1)
         self.pred_norm =  tmp / np.expand_dims(tmp.sum(1), axis=1)
                 
-    def plot_loss(self, ax=None, i_RM=0):
+    def plot_loss(self, ax=None, i_RM=0, **kwargs):
         
         import matplotlib.pyplot as plt
         
@@ -719,7 +714,7 @@ class manage_RM(object):
                         val_loss_values = self.history[i_RM].history['val_loss']
                     except:
                         val_loss_values = None   
-                ax.plot(self.loss_values, label='Train loss')
+                ax.plot(self.loss_values, label='Train loss', **kwargs)
                 if val_loss_values is not None:
                     ax.plot(val_loss_values, label='Validation loss')
             ax.set_yscale('log')
