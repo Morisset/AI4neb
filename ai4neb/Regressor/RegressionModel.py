@@ -6,7 +6,6 @@ Created on Tue Dec 18 09:03:31 2018
 """
 
 # coding: utf-8
-
 import numpy as np
 import time
 import random
@@ -94,7 +93,8 @@ class manage_RM(object):
                  y_vects=None,
                  min_discret=0,
                  max_discret=1,
-                 clear_session=False):
+                 clear_session=False,
+                 notry=False):
         """
         Object to manage Regression Model(s).
             RM_type: can be 'SK_ANN', 'SK_ANN_Dis', 'SK_SVM', 'SK_NuSVM', 
@@ -113,6 +113,7 @@ class manage_RM(object):
             min_discret [0] and max_discret [1]: range values for the discretization vectors
                 
         """
+
         self.verbose = verbose
         if clear_session:
             try:
@@ -174,7 +175,7 @@ class manage_RM(object):
         self._multi_predic = True
         self.RM_filename = RM_filename
         if RM_filename is not None:
-            self.load_RM(filename=RM_filename)
+            self.load_RM(filename=RM_filename, notry=notry)
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
         
@@ -483,8 +484,8 @@ class manage_RM(object):
             if i > 0:
                 tt += np.cumsum(self.N_y_bins)[i-1]
             new_y[(np.arange(y.shape[0]), tt)] = self.max_discret
-            if self.verbose:
-                print("Discretizing column {} on {} bins".format(i, self.N_y_bins[i])) 
+#            if self.verbose:
+#                print("Discretizing column {} on {} bins".format(i, self.N_y_bins[i])) 
         return new_y
             
     def __set_train(self, X=None, y=None):
@@ -718,7 +719,7 @@ class manage_RM(object):
                 if val_loss_values is not None:
                     ax.plot(val_loss_values, label='Validation loss')
             ax.set_yscale('log')
-        
+    
     def predict(self, scoring=False, reduce_by=None):
         """
         Compute the prediction using self.X_test
@@ -878,7 +879,7 @@ class manage_RM(object):
            print('Do not know how to save {} machine'.format(self.RM_type))
         
             
-    def load_RM(self, filename='RM'):
+    def load_RM(self, filename='RM', notry=False):
         """
         Loading previously saved model.
         joblib is used to load.
@@ -914,12 +915,17 @@ class manage_RM(object):
             self.model_read = False
             return
         
-        try:
+        if notry:
             RM_tuple = joblib.load(to_read)
             if self.verbose:
                 print('RM loaded from {}'.format(to_read))
-        except:
-            print('!! ERROR reading {}'.format(to_read))
+        else:
+            try:
+                RM_tuple = joblib.load(to_read)
+                if self.verbose:
+                    print('RM loaded from {}'.format(to_read))
+            except:
+                print('!! ERROR reading {}'.format(to_read))
         
         load_version = RM_tuple[0]
         if self.RM_version != load_version and self.verbose:
@@ -945,13 +951,18 @@ class manage_RM(object):
             self.model_read = False
             print('!! ERROR. This version is not supported.')
         if format_to_read == 'K':
-            try:
+            if notry:
                 self.RMs = [load_model("{}.ai4neb_k1".format(filename))]
                 if self.verbose:
                     print('RM loaded from {}.ai4neb_k1'.format(filename))
-            except:
-                self.model_read = False
-                print('!! ERROR reading {}.ai4neb_k1'.format(filename))
+            else:
+                try:
+                    self.RMs = [load_model("{}.ai4neb_k1".format(filename))]
+                    if self.verbose:
+                        print('RM loaded from {}.ai4neb_k1'.format(filename))
+                except:
+                    self.model_read = False
+                    print('!! ERROR reading {}.ai4neb_k1'.format(filename))
         elif format_to_read == 'XGB':
             try:
                 self.RMs = []
