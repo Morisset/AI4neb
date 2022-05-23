@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "ai4neb"
-version = "0.1.0"
+version = "0.2.11"
 description = ""
 authors = ["Your Name <you@example.com>"]
 
