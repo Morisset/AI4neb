@@ -5,7 +5,7 @@ Artificial Inteligence tools to study astrophysical nebulae
 
 ## Installation
 
-pip install -U git+https://github.com/morisset/AI4neb.git
+pip install -U git+https://github.com/VGomezLlanos/AI4neb.git
 
 ## Warranty
 

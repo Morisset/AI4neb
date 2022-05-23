@@ -12,7 +12,7 @@ setup(
     description="A package to developp AI tools for Nebular studies",
     long_description=readme,
     long_description_content_type="text/markdown",
-    url="https://github.com/morisset/AI4neb",
+    url="https://github.com/VGomezLlanos/AI4neb",
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3.7",
