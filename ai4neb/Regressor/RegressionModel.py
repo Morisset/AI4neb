@@ -68,9 +68,22 @@ try:
     XGB_OK = True
 except:
     XGB_OK = False
+    
+    
+try:
+    import lightgbm as lgb
+    LGB_OK = True
+except:
+    LGB_OK = False
+
+try:
+    import catboost
+    CB_OK = True
+except:
+    CB_OK = False    
             
 RM_version = "0.17"
-#%%
+#%% Main class
 class manage_RM(object):
     """
     Manage Regression Model from SciKit learn and Tensorflow via Keras.
@@ -214,13 +227,32 @@ class manage_RM(object):
                 to_return = np.expand_dims(to_return, axis=1)
         return to_return
     
-    def init_RM(self, **kwargs):
+    def init_RM(self, user_defined_RM=None, **kwargs):
         """
         Initialisation of the Regression Model.
         Any parameter is passed to the Model.
         self.N_out RM can be needed if not ANN type. 
         They are stored in self.RMs list.
         """
+        
+
+        if user_defined_RM is not None:
+            if type(user_defined_RM) is not dict:
+                raise TypeError('user_defined_RM needs to be a dictionnary')
+            if 'model' not in user_defined_RM:
+                raise ValueError('user_defined_RM dictionnary does not contain model')
+            else:
+                user_defined_model = user_defined_RM['model']
+            if type(user_defined_model) is list:
+                self.RMs = user_defined_model
+            else:
+                self.RMs = [user_defined_model]
+            if 'train_params' in user_defined_RM:
+                self.train_param = user_defined_RM['train_params']
+            if '_multi_predic' in user_defined_RM:
+                self._multi_predic = user_defined_RM['_multi_predic']
+            return
+
         self.RMs = []
         self.train_params = {}
         self._multi_predic = False
@@ -400,6 +432,16 @@ class manage_RM(object):
                 raise ValueError('xgboost not installed')
             for i in range(self.N_out):
                 self.RMs.append(xgb.XGBRegressor(random_state=self.random_seed, **kwargs))
+        elif self.RM_type == 'LGB':
+            if not LGB_OK:
+                raise ValueError('lightgbm not installed')
+            for i in range(self.N_out):
+                self.RMs.append(lgb.LGBMRegressor(random_state=self.random_seed, **kwargs))
+        elif self.RM_type == 'CatBoost':
+            if not CB_OK:
+                raise ValueError('CatBoost not installed')
+            for i in range(self.N_out):
+                self.RMs.append(catboost.CatBoostRegressor(random_state=self.random_seed, **kwargs))
         else:
             raise ValueError('Unkown Regression method {}'.format(self.RM_type))
         if self.verbose:
@@ -1002,7 +1044,7 @@ def score(RM, X, y_true, axis=None):
     
     return 1 - u/v
                 
-#%%
+#%% __main__
 if __name__ == "__main__":
     pass
     
