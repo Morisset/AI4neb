@@ -230,6 +230,8 @@ class manage_RM(object):
     def init_RM(self, user_defined_RM=None, **kwargs):
         """
         Initialisation of the Regression Model.
+        user_defined_RM: an optional dictionnary containing a (list of) model(s),
+            train_params, and _multi_predic.
         Any parameter is passed to the Model.
         self.N_out RM can be needed if not ANN type. 
         They are stored in self.RMs list.
@@ -1047,5 +1049,4 @@ def score(RM, X, y_true, axis=None):
 #%% __main__
 if __name__ == "__main__":
     pass
-    
     
