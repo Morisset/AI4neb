@@ -849,7 +849,7 @@ class manage_RM(object):
             print('Predicting from {} inputs to {} outputs using {} data in {:.2f} secs.'.format(self.N_in_test,
                   self.N_out, self.N_test, end - start))
         
-    def save_RM(self, filename='RM', save_train=False, save_test=False):
+    def save_RM(self, filename='RM', save_train=False, save_test=False, **kwargs):
         """
         Save the following values:
             self.RM_version, self.RM_type, 
@@ -898,7 +898,7 @@ class manage_RM(object):
         
         if self.RM_type[0:3] == 'SK_': 
             to_save.append(self.RMs)
-            joblib.dump(to_save, filename+'.ai4neb_sk')
+            joblib.dump(to_save, filename+'.ai4neb_sk', **kwargs)
             if self.verbose:
                 print('RM save to {}.ai4neb_sk'.format(filename))
         elif self.RM_type[0:2] == 'K_':
@@ -907,7 +907,7 @@ class manage_RM(object):
             if self.verbose:
                 print('RM save to {}.ai4neb_k0'.format(filename))
             for i, RM in enumerate(self.RMs):
-                RM.save('{}.ai4neb_k{}'.format(filename, i+1))
+                RM.save('{}.ai4neb_k{}'.format(filename, i+1), **kwargs)
                 if self.verbose:
                     print('RM save to {}.ai4neb_k{}'.format(filename, i+1))
         elif self.RM_type == 'XGB':
@@ -916,7 +916,7 @@ class manage_RM(object):
             if self.verbose:
                 print('RM save to {}.ai4neb_xgb0'.format(filename))
             for i, RM in enumerate(self.RMs):
-                RM.save_model('{}.ai4neb_xgb{}'.format(filename, i+1))
+                RM.save_model('{}.ai4neb_xgb{}'.format(filename, i+1), **kwargs)
                 if self.verbose:
                     print('RM save to {}.ai4neb_xgb{}'.format(filename, i+1))
         else:
