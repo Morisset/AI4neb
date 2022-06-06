@@ -250,7 +250,7 @@ class manage_RM(object):
             else:
                 self.RMs = [user_defined_model]
             if 'train_params' in user_defined_RM:
-                self.train_param = user_defined_RM['train_params']
+                self.train_params = user_defined_RM['train_params']
             if '_multi_predic' in user_defined_RM:
                 self._multi_predic = user_defined_RM['_multi_predic']
             return
