@@ -824,6 +824,7 @@ class manage_RM(object):
                 print('Score = {}'.format(', '.join(['{:.3f}'.format(ts) for ts in self.predic_score])))
         if self.scaling_y:
             self.pred = self.scaler_y.inverse_transform(self.pred)
+        self.pred = np.asarray(self.pred) # in case of a Tensor
         if reduce_by is not None:
             if self.N_y_bins is None:
                 raise Exception('Can not reduce if N_y_bins is not defined.')
@@ -1009,10 +1010,6 @@ class manage_RM(object):
         if format_to_read == 'K':
             if notry:
                 self.RMs = [load_model("{}.ai4neb_k1".format(filename))]
-                if compile_:
-                    if self.verbose:
-                        print('Compiling model')
-                    self.RMs[0].compile()
                 if self.verbose:
                     print('RM loaded from {}.ai4neb_k1'.format(filename))
             else:
@@ -1036,6 +1033,12 @@ class manage_RM(object):
                 print('!! ERROR reading {}.ai4neb_xgb1'.format(filename))
                 
         self.discretized = False
+
+        if compile_:
+            if self.verbose:
+                print('Compiling model')
+            for rm in self.RMs:
+                rm.compile()        
         if self.N_y_bins is not None or self.y_vects is not None:
             self.discretize()
         else:
