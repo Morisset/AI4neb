@@ -108,7 +108,8 @@ class manage_RM(object):
                  max_discret=1,
                  clear_session=False,
                  notry=False,
-                 predict_functional=False):
+                 predict_functional=False,
+                 compile_=False):
         """
         Object to manage Regression Model(s).
             RM_type: can be 'SK_ANN', 'SK_ANN_Dis', 'SK_SVM', 'SK_NuSVM', 
@@ -189,8 +190,8 @@ class manage_RM(object):
         self._multi_predic = True
         self.RM_filename = RM_filename
         self.predict_functional = predict_functional
-        if RM_filename is not None:
-            self.load_RM(filename=RM_filename, notry=notry)
+        if self.RM_filename is not None:
+            self.load_RM(filename=self.RM_filename, notry=notry, compile_=compile_)
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
         
@@ -934,7 +935,7 @@ class manage_RM(object):
            print('Do not know how to save {} machine'.format(self.RM_type))
         
             
-    def load_RM(self, filename='RM', notry=False):
+    def load_RM(self, filename='RM', notry=False, compile_=False):
         """
         Loading previously saved model.
         joblib is used to load.
@@ -1008,6 +1009,10 @@ class manage_RM(object):
         if format_to_read == 'K':
             if notry:
                 self.RMs = [load_model("{}.ai4neb_k1".format(filename))]
+                if compile_:
+                    if self.verbose:
+                        print('Compiling model')
+                    self.RMs[0].compile()
                 if self.verbose:
                     print('RM loaded from {}.ai4neb_k1'.format(filename))
             else:
