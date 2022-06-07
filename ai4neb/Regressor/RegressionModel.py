@@ -107,7 +107,8 @@ class manage_RM(object):
                  min_discret=0,
                  max_discret=1,
                  clear_session=False,
-                 notry=False):
+                 notry=False,
+                 predict_functional=False):
         """
         Object to manage Regression Model(s).
             RM_type: can be 'SK_ANN', 'SK_ANN_Dis', 'SK_SVM', 'SK_NuSVM', 
@@ -187,6 +188,7 @@ class manage_RM(object):
         self.trained = False
         self._multi_predic = True
         self.RM_filename = RM_filename
+        self.predict_functional = predict_functional
         if RM_filename is not None:
             self.load_RM(filename=RM_filename, notry=notry)
         if self.verbose:
@@ -667,7 +669,7 @@ class manage_RM(object):
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
 
-    def train_RM(self, p_backend='loky'):
+    def train_RM(self, p_backend='loky', scoring=True):
         """
         Training the models.
         """
@@ -693,15 +695,16 @@ class manage_RM(object):
                 y_train = self.y_train
             history = RM.fit(self.X_train, y_train, **self.train_params)
             self.history = [history]
-            train_score = score(RM, self.X_train, y_train)
-            self.train_score = [train_score]
-            iter_str = '.'
-            if self.verbose:
-                try:
-                    iter_str = ', with {} iterations.'.format(RM.n_iter_)
-                except:
-                    iter_str = '.'
-                print('RM trained{} Score = {:.3f}'.format(iter_str, train_score))
+            if scoring:
+                train_score = score(RM, self.X_train, y_train)
+                self.train_score = [train_score]
+                iter_str = '.'
+                if self.verbose:
+                    try:
+                        iter_str = ', with {} iterations.'.format(RM.n_iter_)
+                    except:
+                        iter_str = '.'
+                    print('RM trained{} Score = {:.3f}'.format(iter_str, train_score))
         else:
             if self.y_train.ndim == 1:
                 y_trains = (self.y_train,)
@@ -719,15 +722,16 @@ class manage_RM(object):
                 i_RM += 1
                 history = RM.fit(to_fit, y_train, **self.train_params)
                 self.history.append(history)
-                train_score = score(RM, to_fit, y_train)
-                self.train_score.append(train_score)
-                iter_str = '.'
-                if self.verbose:
-                    try:
-                        iter_str = ', with {} iterations.'.format(RM.n_iter_)
-                    except:
-                        iter_str = '.'
-                    print('RM trained{} Score = {:.3f}'.format(iter_str, train_score))
+                if scoring:
+                    train_score = score(RM, to_fit, y_train)
+                    self.train_score.append(train_score)
+                    iter_str = '.'
+                    if self.verbose:
+                        try:
+                            iter_str = ', with {} iterations.'.format(RM.n_iter_)
+                        except:
+                            iter_str = '.'
+                        print('RM trained{} Score = {:.3f}'.format(iter_str, train_score))
 
         self.trained = True
         end = time.time()
@@ -778,7 +782,10 @@ class manage_RM(object):
         if not self.test_scaled and self.verbose:
             print('WARNING: test data not scaled')
         if self._multi_predic:
-            self.pred = self.RMs[0].predict(self.X_test)
+            if self.predict_functional:
+                self.pred = self.RMs[0](self.X_test)[0,::]                
+            else:
+                self.pred = self.RMs[0].predict(self.X_test)
         else:
             self.pred = []
             for i_RM, RM in enumerate(self.RMs):
@@ -786,14 +793,18 @@ class manage_RM(object):
                     to_predict = self.poly[i_RM].fit_transform(self.X_test)
                 else:
                     to_predict = self.X_test
-                self.pred.append(RM.predict(to_predict))
+                if self.predict_functional:
+                    self.pred.append(RM(to_predict))[0,::]
+                else:
+                    self.pred.append(RM.predict(to_predict))
             self.pred = np.array(self.pred).T
         if scoring:
             if self.N_test != self.N_test_y:
                 raise Exception('N_test {} != N_test_y {}'.format(self.N_test, self.N_test_y))
             if self._multi_predic:
                 try:
-                    self.predic_score = score(self.RMs[0], to_predict, self.y_test, axis=0)  #[score(RM, self.X_test, self.y_test) for RM in self.RMs]
+                    self.predic_score = score(self.RMs[0], to_predict, self.y_test, axis=0, 
+                                              predict_functional=self.predict_functional)  #[score(RM, self.X_test, self.y_test) for RM in self.RMs]
                 except:
                     self.predic_score = [np.nan for RM in self.RMs]
             else:
@@ -1033,12 +1044,15 @@ class manage_RM(object):
             self.y_train_unscaled = self.y_train
         self.model_read =True
         
-def score(RM, X, y_true, axis=None):
+def score(RM, X, y_true, axis=None, predict_functional=False):
     """
     (1 - u/v), where u is the residual sum of squares ((y_true - y_pred) ** 2).sum() 
     and v is the total sum of squares ((y_true - y_true.mean()) ** 2).sum().
     """
-    y_pred = RM.predict(X)
+    if predict_functional:
+        y_pred = RM(X)[0,::]
+    else:
+        y_pred = RM.predict(X)
     if y_pred.ndim == 2 and y_pred.shape[1] == 1:
             y_pred = np.ravel(y_pred)
     u = ((y_true - y_pred) ** 2).sum(axis=axis)
