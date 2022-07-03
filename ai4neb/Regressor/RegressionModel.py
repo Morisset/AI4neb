@@ -932,6 +932,15 @@ class manage_RM(object):
                 RM.save_model('{}.ai4neb_xgb{}'.format(filename, i+1), **kwargs)
                 if self.verbose:
                     print('RM save to {}.ai4neb_xgb{}'.format(filename, i+1))
+        elif self.RM_type == 'CatBoost':
+            to_save.append(None)
+            joblib.dump(to_save, filename+'.ai4neb_catb0')
+            if self.verbose:
+                print('RM save to {}.ai4neb_catb0'.format(filename))
+            for i, RM in enumerate(self.RMs):
+                RM.save_model('{}.ai4neb_catb{}'.format(filename, i+1), **kwargs)
+                if self.verbose:
+                    print('RM save to {}.ai4neb_catb{}'.format(filename, i+1))
         else:
            print('Do not know how to save {} machine'.format(self.RM_type))
         
@@ -966,6 +975,9 @@ class manage_RM(object):
         elif "{}.ai4neb_xgb0".format(filename) in files: 
             to_read = "{}.ai4neb_xgb0".format(filename)
             format_to_read = 'XGB'
+        elif "{}.ai4neb_catb0".format(filename) in files: 
+            to_read = "{}.ai4neb_catb0".format(filename)
+            format_to_read = 'CatBoost'
         else:
             to_read = None
             print('No ai4neb file found for {}'.format(filename))
@@ -1031,6 +1043,18 @@ class manage_RM(object):
             except:
                 self.model_read = False
                 print('!! ERROR reading {}.ai4neb_xgb1'.format(filename))
+                
+        elif format_to_read == 'CatBoost':
+            try:
+                self.RMs = []
+                for i in np.arange(self.N_out)+1:
+                    self.RMs.append(xgb.XGBRegressor())
+                    self.RMs[i-1].load_model('{}.ai4neb_catb{}'.format(filename, i))
+                    if self.verbose:
+                        print('RM loaded from {}.ai4neb_catb{}'.format(filename, i))
+            except:
+                self.model_read = False
+                print('!! ERROR reading {}.ai4neb_catb1'.format(filename))
                 
         self.discretized = False
 
