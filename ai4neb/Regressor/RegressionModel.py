@@ -6,7 +6,6 @@ Created on Tue Dec 18 09:03:31 2018
 """
 
 # coding: utf-8
-
 import numpy as np
 import time
 import random
@@ -69,9 +68,22 @@ try:
     XGB_OK = True
 except:
     XGB_OK = False
+    
+    
+try:
+    import lightgbm as lgb
+    LGB_OK = True
+except:
+    LGB_OK = False
+
+try:
+    import catboost
+    CB_OK = True
+except:
+    CB_OK = False    
             
 RM_version = "0.17"
-#%%
+#%% Main class
 class manage_RM(object):
     """
     Manage Regression Model from SciKit learn and Tensorflow via Keras.
@@ -94,7 +106,10 @@ class manage_RM(object):
                  y_vects=None,
                  min_discret=0,
                  max_discret=1,
-                 clear_session=False):
+                 clear_session=False,
+                 notry=False,
+                 predict_functional=False,
+                 compile_=False):
         """
         Object to manage Regression Model(s).
             RM_type: can be 'SK_ANN', 'SK_ANN_Dis', 'SK_SVM', 'SK_NuSVM', 
@@ -113,6 +128,7 @@ class manage_RM(object):
             min_discret [0] and max_discret [1]: range values for the discretization vectors
                 
         """
+
         self.verbose = verbose
         if clear_session:
             try:
@@ -173,8 +189,9 @@ class manage_RM(object):
         self.trained = False
         self._multi_predic = True
         self.RM_filename = RM_filename
-        if RM_filename is not None:
-            self.load_RM(filename=RM_filename)
+        self.predict_functional = predict_functional
+        if self.RM_filename is not None:
+            self.load_RM(filename=self.RM_filename, notry=notry, compile_=compile_)
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
         
@@ -213,13 +230,34 @@ class manage_RM(object):
                 to_return = np.expand_dims(to_return, axis=1)
         return to_return
     
-    def init_RM(self, **kwargs):
+    def init_RM(self, user_defined_RM=None, **kwargs):
         """
         Initialisation of the Regression Model.
+        user_defined_RM: an optional dictionnary containing a (list of) model(s),
+            train_params, and _multi_predic.
         Any parameter is passed to the Model.
         self.N_out RM can be needed if not ANN type. 
         They are stored in self.RMs list.
         """
+        
+
+        if user_defined_RM is not None:
+            if type(user_defined_RM) is not dict:
+                raise TypeError('user_defined_RM needs to be a dictionnary')
+            if 'model' not in user_defined_RM:
+                raise ValueError('user_defined_RM dictionnary does not contain model')
+            else:
+                user_defined_model = user_defined_RM['model']
+            if type(user_defined_model) is list:
+                self.RMs = user_defined_model
+            else:
+                self.RMs = [user_defined_model]
+            if 'train_params' in user_defined_RM:
+                self.train_params = user_defined_RM['train_params']
+            if '_multi_predic' in user_defined_RM:
+                self._multi_predic = user_defined_RM['_multi_predic']
+            return
+
         self.RMs = []
         self.train_params = {}
         self._multi_predic = False
@@ -399,6 +437,16 @@ class manage_RM(object):
                 raise ValueError('xgboost not installed')
             for i in range(self.N_out):
                 self.RMs.append(xgb.XGBRegressor(random_state=self.random_seed, **kwargs))
+        elif self.RM_type == 'LGB':
+            if not LGB_OK:
+                raise ValueError('lightgbm not installed')
+            for i in range(self.N_out):
+                self.RMs.append(lgb.LGBMRegressor(random_state=self.random_seed, **kwargs))
+        elif self.RM_type == 'CatBoost':
+            if not CB_OK:
+                raise ValueError('CatBoost not installed')
+            for i in range(self.N_out):
+                self.RMs.append(catboost.CatBoostRegressor(random_state=self.random_seed, **kwargs))
         else:
             raise ValueError('Unkown Regression method {}'.format(self.RM_type))
         if self.verbose:
@@ -483,8 +531,8 @@ class manage_RM(object):
             if i > 0:
                 tt += np.cumsum(self.N_y_bins)[i-1]
             new_y[(np.arange(y.shape[0]), tt)] = self.max_discret
-            if self.verbose:
-                print("Discretizing column {} on {} bins".format(i, self.N_y_bins[i])) 
+#            if self.verbose:
+#                print("Discretizing column {} on {} bins".format(i, self.N_y_bins[i])) 
         return new_y
             
     def __set_train(self, X=None, y=None):
@@ -622,7 +670,7 @@ class manage_RM(object):
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
 
-    def train_RM(self, p_backend='loky'):
+    def train_RM(self, p_backend='loky', scoring=True):
         """
         Training the models.
         """
@@ -648,15 +696,16 @@ class manage_RM(object):
                 y_train = self.y_train
             history = RM.fit(self.X_train, y_train, **self.train_params)
             self.history = [history]
-            train_score = score(RM, self.X_train, y_train)
-            self.train_score = [train_score]
-            iter_str = '.'
-            if self.verbose:
-                try:
-                    iter_str = ', with {} iterations.'.format(RM.n_iter_)
-                except:
-                    iter_str = '.'
-                print('RM trained{} Score = {:.3f}'.format(iter_str, train_score))
+            if scoring:
+                train_score = score(RM, self.X_train, y_train)
+                self.train_score = [train_score]
+                iter_str = '.'
+                if self.verbose:
+                    try:
+                        iter_str = ', with {} iterations.'.format(RM.n_iter_)
+                    except:
+                        iter_str = '.'
+                    print('RM trained{} Score = {:.3f}'.format(iter_str, train_score))
         else:
             if self.y_train.ndim == 1:
                 y_trains = (self.y_train,)
@@ -674,15 +723,16 @@ class manage_RM(object):
                 i_RM += 1
                 history = RM.fit(to_fit, y_train, **self.train_params)
                 self.history.append(history)
-                train_score = score(RM, to_fit, y_train)
-                self.train_score.append(train_score)
-                iter_str = '.'
-                if self.verbose:
-                    try:
-                        iter_str = ', with {} iterations.'.format(RM.n_iter_)
-                    except:
-                        iter_str = '.'
-                    print('RM trained{} Score = {:.3f}'.format(iter_str, train_score))
+                if scoring:
+                    train_score = score(RM, to_fit, y_train)
+                    self.train_score.append(train_score)
+                    iter_str = '.'
+                    if self.verbose:
+                        try:
+                            iter_str = ', with {} iterations.'.format(RM.n_iter_)
+                        except:
+                            iter_str = '.'
+                        print('RM trained{} Score = {:.3f}'.format(iter_str, train_score))
 
         self.trained = True
         end = time.time()
@@ -718,7 +768,7 @@ class manage_RM(object):
                 if val_loss_values is not None:
                     ax.plot(val_loss_values, label='Validation loss')
             ax.set_yscale('log')
-        
+    
     def predict(self, scoring=False, reduce_by=None):
         """
         Compute the prediction using self.X_test
@@ -733,7 +783,10 @@ class manage_RM(object):
         if not self.test_scaled and self.verbose:
             print('WARNING: test data not scaled')
         if self._multi_predic:
-            self.pred = self.RMs[0].predict(self.X_test)
+            if self.predict_functional:
+                self.pred = self.RMs[0](self.X_test)[0,::]                
+            else:
+                self.pred = self.RMs[0].predict(self.X_test)
         else:
             self.pred = []
             for i_RM, RM in enumerate(self.RMs):
@@ -741,14 +794,18 @@ class manage_RM(object):
                     to_predict = self.poly[i_RM].fit_transform(self.X_test)
                 else:
                     to_predict = self.X_test
-                self.pred.append(RM.predict(to_predict))
+                if self.predict_functional:
+                    self.pred.append(RM(to_predict))[0,::]
+                else:
+                    self.pred.append(RM.predict(to_predict))
             self.pred = np.array(self.pred).T
         if scoring:
             if self.N_test != self.N_test_y:
                 raise Exception('N_test {} != N_test_y {}'.format(self.N_test, self.N_test_y))
             if self._multi_predic:
                 try:
-                    self.predic_score = score(self.RMs[0], to_predict, self.y_test, axis=0)  #[score(RM, self.X_test, self.y_test) for RM in self.RMs]
+                    self.predic_score = score(self.RMs[0], to_predict, self.y_test, axis=0, 
+                                              predict_functional=self.predict_functional)  #[score(RM, self.X_test, self.y_test) for RM in self.RMs]
                 except:
                     self.predic_score = [np.nan for RM in self.RMs]
             else:
@@ -767,6 +824,7 @@ class manage_RM(object):
                 print('Score = {}'.format(', '.join(['{:.3f}'.format(ts) for ts in self.predic_score])))
         if self.scaling_y:
             self.pred = self.scaler_y.inverse_transform(self.pred)
+        self.pred = np.asarray(self.pred) # in case of a Tensor
         if reduce_by is not None:
             if self.N_y_bins is None:
                 raise Exception('Can not reduce if N_y_bins is not defined.')
@@ -804,7 +862,7 @@ class manage_RM(object):
             print('Predicting from {} inputs to {} outputs using {} data in {:.2f} secs.'.format(self.N_in_test,
                   self.N_out, self.N_test, end - start))
         
-    def save_RM(self, filename='RM', save_train=False, save_test=False):
+    def save_RM(self, filename='RM', save_train=False, save_test=False, **kwargs):
         """
         Save the following values:
             self.RM_version, self.RM_type, 
@@ -853,7 +911,7 @@ class manage_RM(object):
         
         if self.RM_type[0:3] == 'SK_': 
             to_save.append(self.RMs)
-            joblib.dump(to_save, filename+'.ai4neb_sk')
+            joblib.dump(to_save, filename+'.ai4neb_sk', **kwargs)
             if self.verbose:
                 print('RM save to {}.ai4neb_sk'.format(filename))
         elif self.RM_type[0:2] == 'K_':
@@ -862,7 +920,7 @@ class manage_RM(object):
             if self.verbose:
                 print('RM save to {}.ai4neb_k0'.format(filename))
             for i, RM in enumerate(self.RMs):
-                RM.save('{}.ai4neb_k{}'.format(filename, i+1))
+                RM.save('{}.ai4neb_k{}'.format(filename, i+1), **kwargs)
                 if self.verbose:
                     print('RM save to {}.ai4neb_k{}'.format(filename, i+1))
         elif self.RM_type == 'XGB':
@@ -871,14 +929,23 @@ class manage_RM(object):
             if self.verbose:
                 print('RM save to {}.ai4neb_xgb0'.format(filename))
             for i, RM in enumerate(self.RMs):
-                RM.save_model('{}.ai4neb_xgb{}'.format(filename, i+1))
+                RM.save_model('{}.ai4neb_xgb{}'.format(filename, i+1), **kwargs)
                 if self.verbose:
                     print('RM save to {}.ai4neb_xgb{}'.format(filename, i+1))
+        elif self.RM_type == 'CatBoost':
+            to_save.append(None)
+            joblib.dump(to_save, filename+'.ai4neb_catb0')
+            if self.verbose:
+                print('RM save to {}.ai4neb_catb0'.format(filename))
+            for i, RM in enumerate(self.RMs):
+                RM.save_model('{}.ai4neb_catb{}'.format(filename, i+1), **kwargs)
+                if self.verbose:
+                    print('RM save to {}.ai4neb_catb{}'.format(filename, i+1))
         else:
            print('Do not know how to save {} machine'.format(self.RM_type))
         
             
-    def load_RM(self, filename='RM'):
+    def load_RM(self, filename='RM', notry=False, compile_=False):
         """
         Loading previously saved model.
         joblib is used to load.
@@ -908,18 +975,26 @@ class manage_RM(object):
         elif "{}.ai4neb_xgb0".format(filename) in files: 
             to_read = "{}.ai4neb_xgb0".format(filename)
             format_to_read = 'XGB'
+        elif "{}.ai4neb_catb0".format(filename) in files: 
+            to_read = "{}.ai4neb_catb0".format(filename)
+            format_to_read = 'CatBoost'
         else:
             to_read = None
             print('No ai4neb file found for {}'.format(filename))
             self.model_read = False
             return
         
-        try:
+        if notry:
             RM_tuple = joblib.load(to_read)
             if self.verbose:
                 print('RM loaded from {}'.format(to_read))
-        except:
-            print('!! ERROR reading {}'.format(to_read))
+        else:
+            try:
+                RM_tuple = joblib.load(to_read)
+                if self.verbose:
+                    print('RM loaded from {}'.format(to_read))
+            except:
+                print('!! ERROR reading {}'.format(to_read))
         
         load_version = RM_tuple[0]
         if self.RM_version != load_version and self.verbose:
@@ -945,13 +1020,18 @@ class manage_RM(object):
             self.model_read = False
             print('!! ERROR. This version is not supported.')
         if format_to_read == 'K':
-            try:
+            if notry:
                 self.RMs = [load_model("{}.ai4neb_k1".format(filename))]
                 if self.verbose:
                     print('RM loaded from {}.ai4neb_k1'.format(filename))
-            except:
-                self.model_read = False
-                print('!! ERROR reading {}.ai4neb_k1'.format(filename))
+            else:
+                try:
+                    self.RMs = [load_model("{}.ai4neb_k1".format(filename))]
+                    if self.verbose:
+                        print('RM loaded from {}.ai4neb_k1'.format(filename))
+                except:
+                    self.model_read = False
+                    print('!! ERROR reading {}.ai4neb_k1'.format(filename))
         elif format_to_read == 'XGB':
             try:
                 self.RMs = []
@@ -964,7 +1044,25 @@ class manage_RM(object):
                 self.model_read = False
                 print('!! ERROR reading {}.ai4neb_xgb1'.format(filename))
                 
+        elif format_to_read == 'CatBoost':
+            try:
+                self.RMs = []
+                for i in np.arange(self.N_out)+1:
+                    self.RMs.append(xgb.XGBRegressor())
+                    self.RMs[i-1].load_model('{}.ai4neb_catb{}'.format(filename, i))
+                    if self.verbose:
+                        print('RM loaded from {}.ai4neb_catb{}'.format(filename, i))
+            except:
+                self.model_read = False
+                print('!! ERROR reading {}.ai4neb_catb1'.format(filename))
+                
         self.discretized = False
+
+        if compile_:
+            if self.verbose:
+                print('Compiling model')
+            for rm in self.RMs:
+                rm.compile()        
         if self.N_y_bins is not None or self.y_vects is not None:
             self.discretize()
         else:
@@ -978,12 +1076,15 @@ class manage_RM(object):
             self.y_train_unscaled = self.y_train
         self.model_read =True
         
-def score(RM, X, y_true, axis=None):
+def score(RM, X, y_true, axis=None, predict_functional=False):
     """
     (1 - u/v), where u is the residual sum of squares ((y_true - y_pred) ** 2).sum() 
     and v is the total sum of squares ((y_true - y_true.mean()) ** 2).sum().
     """
-    y_pred = RM.predict(X)
+    if predict_functional:
+        y_pred = RM(X)[0,::]
+    else:
+        y_pred = RM.predict(X)
     if y_pred.ndim == 2 and y_pred.shape[1] == 1:
             y_pred = np.ravel(y_pred)
     u = ((y_true - y_pred) ** 2).sum(axis=axis)
@@ -991,8 +1092,7 @@ def score(RM, X, y_true, axis=None):
     
     return 1 - u/v
                 
-#%%
+#%% __main__
 if __name__ == "__main__":
     pass
-    
     
