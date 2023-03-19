@@ -13,4 +13,4 @@ AI4neb is provided as it is. No warranty at all.
 
 ## Acknowledgments
 
-This project is partly supported by grants DGAPA/PAPIIT-107215 and CONACyT-CB2015-254132.
+This project is partly supported by grants DGAPA/PAPIIT IN-107215, DGAPA/PAPIIT IN-101220 and CONACyT-CB2015-254132.
