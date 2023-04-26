@@ -769,7 +769,7 @@ class manage_RM(object):
                     ax.plot(val_loss_values, label='Validation loss')
             ax.set_yscale('log')
     
-    def predict(self, scoring=False, reduce_by=None):
+    def predict(self, scoring=False, reduce_by=None, **kwargs):
         """
         Compute the prediction using self.X_test
         Results are stored into self.pred
@@ -786,7 +786,7 @@ class manage_RM(object):
             if self.predict_functional:
                 self.pred = self.RMs[0](self.X_test)[0,::]                
             else:
-                self.pred = self.RMs[0].predict(self.X_test)
+                self.pred = self.RMs[0].predict(self.X_test, **kwargs)
         else:
             self.pred = []
             for i_RM, RM in enumerate(self.RMs):
@@ -797,7 +797,7 @@ class manage_RM(object):
                 if self.predict_functional:
                     self.pred.append(RM(to_predict))[0,::]
                 else:
-                    self.pred.append(RM.predict(to_predict))
+                    self.pred.append(RM.predict(to_predict, **kwargs))
             self.pred = np.array(self.pred).T
         if scoring:
             if self.N_test != self.N_test_y:
