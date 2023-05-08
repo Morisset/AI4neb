@@ -597,10 +597,10 @@ class manage_RM(object):
             else:
                 self.scaler = StandardScaler()
             self.scaler.fit(self.X_train)
-        # ToDO: PCA needs to be applied to scaled data. This is not the case.
+        
         if self.pca_N != 0:
             self.pca = PCA(n_components=self.pca_N)
-            self.pca.fit(self.X_train)
+            self.pca.fit(self.scaler.transform(self.X_train))
 
     def _set_scaler_y(self, force=False):
         if ((self.scaler_y is None) or force) and self.scaling_y and self.y_train is not None:
