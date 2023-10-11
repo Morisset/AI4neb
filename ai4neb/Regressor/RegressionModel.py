@@ -37,7 +37,6 @@ try:
     from tensorflow.keras.layers import Dense, Dropout
     from tensorflow.keras import backend as K
     from tensorflow.keras import initializers, regularizers
-    from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
     TF_OK = True
     keras_access = 'tf.keras'
 except:
@@ -45,7 +44,6 @@ except:
         import tensorflow as tf
         from keras.models import Sequential, load_model
         from keras.layers import Dense, Dropout
-        from keras.wrappers.scikit_learn import KerasRegressor
         from keras import backend as K
         from keras import initializers, regularizers
         TF_OK = True
@@ -57,7 +55,6 @@ except:
             from tensorflow.python.keras.layers import Dense, Dropout
             from tensorflow.python.keras import backend as K
             from tensorflow.python.keras import initializers, regularizers
-            from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
             TF_OK = True
             keras_access = 'tf.python.keras'
         except:
@@ -81,6 +78,12 @@ try:
     CB_OK = True
 except:
     CB_OK = False    
+
+try:
+    from scikeras.wrappers import KerasRegressor
+    scikeras_OK = True
+except:
+    scikeras_OK = False
             
 RM_version = "0.17"
 #%% Main class
@@ -383,6 +386,8 @@ class manage_RM(object):
                                  'validation_split': validation_split}
             self._multi_predic = True
         elif self.RM_type == 'KSK_ANN':
+            pass
+            
             def get_kwargs(kw, default):
                 if kw in kwargs:
                     return kwargs[kw]
