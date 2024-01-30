@@ -10,6 +10,9 @@ import numpy as np
 import time
 import random
 from glob import glob
+import pandas as pd
+
+# my test 1
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, RobustScaler, PolynomialFeatures
@@ -37,6 +40,7 @@ try:
     from tensorflow.keras.layers import Dense, Dropout
     from tensorflow.keras import backend as K
     from tensorflow.keras import initializers, regularizers
+    from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
     TF_OK = True
     keras_access = 'tf.keras'
 except:
@@ -44,6 +48,7 @@ except:
         import tensorflow as tf
         from keras.models import Sequential, load_model
         from keras.layers import Dense, Dropout
+        from keras.wrappers.scikit_learn import KerasRegressor
         from keras import backend as K
         from keras import initializers, regularizers
         TF_OK = True
@@ -55,6 +60,7 @@ except:
             from tensorflow.python.keras.layers import Dense, Dropout
             from tensorflow.python.keras import backend as K
             from tensorflow.python.keras import initializers, regularizers
+            from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
             TF_OK = True
             keras_access = 'tf.python.keras'
         except:
@@ -78,14 +84,8 @@ try:
     CB_OK = True
 except:
     CB_OK = False    
-
-try:
-    from scikeras.wrappers import KerasRegressor
-    scikeras_OK = True
-except:
-    scikeras_OK = False
             
-RM_version = "0.17"
+RM_version = "0.18"
 #%% Main class
 class manage_RM(object):
     """
@@ -102,7 +102,8 @@ class manage_RM(object):
                  use_log=False,
                  split_ratio = None,
                  verbose=False,
-                 RM_filename=None, 
+                 RM_filename=None,
+                 use_data_manager=None,
                  use_RobustScaler=False,
                  random_seed=None,
                  N_y_bins=None,
@@ -195,6 +196,8 @@ class manage_RM(object):
         self.predict_functional = predict_functional
         if self.RM_filename is not None:
             self.load_RM(filename=self.RM_filename, notry=notry, compile_=compile_)
+        if use_data_manager is not None:
+            self.load_data_from_manager(use_data_manager)
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
         
@@ -386,8 +389,6 @@ class manage_RM(object):
                                  'validation_split': validation_split}
             self._multi_predic = True
         elif self.RM_type == 'KSK_ANN':
-            pass
-            
             def get_kwargs(kw, default):
                 if kw in kwargs:
                     return kwargs[kw]
@@ -774,7 +775,7 @@ class manage_RM(object):
                     ax.plot(val_loss_values, label='Validation loss')
             ax.set_yscale('log')
     
-    def predict(self, scoring=False, reduce_by=None, **kwargs):
+    def predict(self, scoring=False, reduce_by=None, y_str=None, X_str=None, **kwargs):
         """
         Compute the prediction using self.X_test
         Results are stored into self.pred
@@ -863,15 +864,22 @@ class manage_RM(object):
                 self.pred = self.pred_max
                 print('Reducing y by max')
         end = time.time()
+        if y_str is not None and X_str is not None:
+            #print(type(self.X_test_unscaled), type(self.pred.shape))
+            self.pred_df = pd.concat([pd.DataFrame(np.asarray(self.X_test_unscaled), columns = X_str),
+                           pd.DataFrame(self.pred, columns = y_str)], axis = 1)
         if self.verbose:
             print('Predicting from {} inputs to {} outputs using {} data in {:.2f} secs.'.format(self.N_in_test,
                   self.N_out, self.N_test, end - start))
         
-    def save_RM(self, filename='RM', save_train=False, save_test=False, **kwargs):
+    def save_RM(self, filename='RM',
+                save_train=False, save_test=False,
+                data_filename = None,
+                X_str = None, y_str = None,
+                **kwargs):
         """
         Save the following values:
             self.RM_version, self.RM_type, 
-                   X_train, y_train, X_test, y_test,
                    self.scaling, self.scaling_y, 
                    self.use_log, self.use_RobustScaler,
                    self.train_scaled, self.test_scaled,
@@ -886,6 +894,9 @@ class manage_RM(object):
                    self.RMs
         
         If using Keras, self.RMs is saved as None, as the RMs are stored in a different file.
+        
+        If either save_train or save_test is True, the corresponding dataset will be saved as a pandas
+        DataFrame with the name [data_filename]_data.gzip.
         """
                 
         if not self.trained:
@@ -899,8 +910,7 @@ class manage_RM(object):
         else:
             X_test, y_test = None, None
         
-        to_save = [self.RM_version, self.RM_type, 
-                   X_train, y_train, X_test, y_test,
+        to_save = [self.RM_version, self.RM_type,
                    self.scaling, self.scaling_y, 
                    self.use_log, self.use_RobustScaler,
                    self.train_scaled, self.test_scaled,
@@ -913,6 +923,12 @@ class manage_RM(object):
                    self.trained, self.training_time,
                    self.random_seed 
                    ]
+        
+        if save_train or save_test:
+            if data_filename is None:
+                data_filename = filename
+            data_manager = manage_RM_data(verbose = self.verbose)
+            data_manager.save_data(data_filename + "_data.gzip", X_train, y_train, X_test, y_test, X_str, y_str)
         
         if self.RM_type[0:3] == 'SK_': 
             to_save.append(self.RMs)
@@ -948,7 +964,6 @@ class manage_RM(object):
                     print('RM save to {}.ai4neb_catb{}'.format(filename, i+1))
         else:
            print('Do not know how to save {} machine'.format(self.RM_type))
-        
             
     def load_RM(self, filename='RM', notry=False, compile_=False):
         """
@@ -1008,6 +1023,7 @@ class manage_RM(object):
         
         if load_version in ("0.17"):
             (self.RM_version, self.RM_type, 
+                   X_train, y_train, X_test, y_test,
                    self.X_train, self.y_train, self.X_test, self.y_test,
                    self.scaling, self.scaling_y, 
                    self.use_log, self.use_RobustScaler,
@@ -1021,6 +1037,22 @@ class manage_RM(object):
                    self.trained, self.training_time,
                    self.random_seed, 
                    self.RMs) = RM_tuple
+            
+        elif load_version in ("0.18"):
+            (self.RM_version, self.RM_type, 
+                   self.scaling, self.scaling_y, 
+                   self.use_log, self.use_RobustScaler,
+                   self.train_scaled, self.test_scaled,
+                   self.scaler, self.scaler_y, 
+                   self.pca_N, self.pca, 
+                   self.N_y_bins, self.y_vects,
+                   self.N_in, self.N_out, self.N_in_test, self.N_out_test,
+                   self.N_test, self.N_test_y, self.N_train, self.N_train_y,
+                   self.train_score, self._multi_predic,
+                   self.trained, self.training_time,
+                   self.random_seed, 
+                   self.RMs) = RM_tuple
+            
         else:
             self.model_read = False
             print('!! ERROR. This version is not supported.')
@@ -1079,8 +1111,130 @@ class manage_RM(object):
             self.X_train_unscaled = self.X_train
             self.X_test_unscaled = self.X_test
             self.y_train_unscaled = self.y_train
-        self.model_read =True
+        self.model_read = True
         
+    def load_data_from_manager(self, manager):
+        self.X_train, self.y_train, self.X_test, self.y_test = manager.X_train, manager.y_train, manager.X_test, manager.y_test
+        
+        if self.scaling:
+            self.scale_sets(use_log=self.use_log, force=True)
+        else:
+            self.X_train_unscaled = self.X_train
+            self.X_test_unscaled = self.X_test
+            self.y_train_unscaled = self.y_train
+
+        
+class manage_RM_data():
+    def __init__(self, filename = None, 
+                 X_str = None, y_str = None, 
+                 split_ratio = 0.2, 
+                 verbose = False):
+        
+        self.X_str = X_str
+        self.y_str = y_str
+        self.split_ratio = split_ratio
+        self.verbose = verbose
+        
+        if filename is not None:
+            self.load_data(filename)
+            
+    def load_data(self, filename, split_ratio = None):
+        data = pd.read_csv(filename, compression = "gzip")
+        
+        if self.X_str == None:
+            print("X_str not defined by user. Searching default labels...")
+            X_str = []
+            for label in data.columns:
+                if label[:2] == "_X": X_str.append(label)
+            if len(X_str) > 0:
+                self.X_str = X_str
+                print("Default labels found for X. Using X_str = {}".format(X_str))
+            else:
+                raise Exception("Default labels not found for X in file {}. Please specify which columns to use in X_str.".format(filename))
+
+        if self.y_str == None:
+            print("y_str not defined by user. Searching default labels...")
+            y_str = []
+            for label in data.columns:
+                if label[:2] == "_y": y_str.append(label)
+            if len(y_str) > 0:
+                self.y_str = y_str
+                print("Default labels found for y. Using y_str = {}".format(y_str))
+            else:
+                raise Exception("Default labels not found for y in file {}. Please specify which columns to use in y_str.".format(filename))
+            
+        
+        if 'train' not in data.keys():
+            N = len(data)
+            data['train'] = np.ones(N)
+            
+            if split_ratio is not None: self.split_ratio = split_ratio
+            data['train'].iloc[np.random.choice(N, int(N*self.split_ratio))] = 0
+            
+        train_loc = data['train'] == 1
+        
+        self.X_train = data.loc[train_loc, self.X_str]
+        self.y_train = data.loc[train_loc, self.y_str]
+        self.X_test = data.loc[~train_loc, self.X_str]
+        self.y_test = data.loc[~train_loc, self.y_str]
+        
+        if len(self.X_train) == 0:
+            self.X_train, self.y_train = None, None
+        
+        if len(self.X_test) == 0:
+            self.X_test, self.y_test = None, None
+        
+        if self.verbose:
+                print("Data loaded from {}".format(filename))
+        
+    def save_data(self, filename, X_train, y_train, X_test, y_test, X_str = None, y_str = None):
+        if X_train is None and y_train is None:
+            X_train, y_train = np.array([]), np.array([])
+        if X_test is None and y_test is None:
+            X_test, y_test = np.array([]), np.array([])
+        
+        if X_str is None:
+            x_columns = self._get_shape(X_train)[1]
+            if x_columns == 0:
+                x_columns = self._get_shape(X_test)[1]
+                
+            X_str = ["_X" + str(i) for i in range(x_columns)]
+            
+        if y_str is None:
+            y_columns = self._get_shape(y_train)[1]
+            if y_columns == 0:
+                y_columns = self._get_shape(y_test)[1]
+                
+            y_str = ["_y" + str(i) for i in range(y_columns)]
+        
+        train = pd.concat([pd.DataFrame(X_train, columns = X_str),
+                           pd.DataFrame(y_train, columns = y_str)], axis = 1)
+        train["train"] = np.ones(len(train))
+        
+        test = pd.concat([pd.DataFrame(X_test, columns = X_str),
+                           pd.DataFrame(y_test, columns = y_str)], axis = 1)
+        test["train"] = np.zeros(len(test))
+        
+        data = pd.concat([train, test], ignore_index=True)
+        
+        data.to_csv(filename, compression = "gzip", index = False)
+        if self.verbose:
+            print("Data saved to {}".format(filename))
+    
+    def _get_shape(self, X):
+        if X is None:
+            rows = 0
+            columns = 0
+        else:
+            rows = X.shape[0]
+            try:
+                columns = X.shape[1]
+            except IndexError:
+                columns = 1
+            
+        return (rows, columns)
+
+    
 def score(RM, X, y_true, axis=None, predict_functional=False):
     """
     (1 - u/v), where u is the residual sum of squares ((y_true - y_pred) ** 2).sum() 
