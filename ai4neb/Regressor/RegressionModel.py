@@ -1124,12 +1124,18 @@ class manage_RM(object):
             self.y_train_unscaled = self.y_train
 
         
-class manage_RM_data():
-    def __init__(self, filename = None, 
+class manage_data():
+    def __init__(self, filename = None, dataframe = None,
+                 X= None, y= None,
                  X_str = None, y_str = None, 
                  split_ratio = 0.2, 
                  verbose = False):
-        
+        """
+        The user send the data in one of the (exclusive) following ways:
+        - filename: a csv file containing X and y.
+        - dataframe: pandas o structured numpy table, containing X and y.
+        - X, and y: pandas o [structured] numpy tables.  
+        """
         self.X_str = X_str
         self.y_str = y_str
         self.split_ratio = split_ratio
@@ -1137,55 +1143,124 @@ class manage_RM_data():
         
         if filename is not None:
             self.load_data(filename)
-            
-    def load_data(self, filename, split_ratio = None):
-        data = pd.read_csv(filename, compression = "gzip")
-        
-        if self.X_str == None:
-            print("X_str not defined by user. Searching default labels...")
-            X_str = []
-            for label in data.columns:
-                if label[:2] == "_X": X_str.append(label)
-            if len(X_str) > 0:
-                self.X_str = X_str
-                print("Default labels found for X. Using X_str = {}".format(X_str))
+        elif dataframe is not None:
+            if type(dataframe) is not pd.core.frame.DataFrame:
+                self.data = pd.DataFrame(dataframe)
             else:
+                self.data = dataframe
+            if X_str is None or y_str is None:
+                raise Exception(f'X_str and y_str must be defined')
+            if len(X_str) + len(y_str) != len(self.data.columns):
+                raise Exception(f'X_str and y_str must sum the number of dataframe columns')
+            if self.X_str is not None:
+                for k in self.X_str:
+                    if k not in self.data.keys():
+                        raise Exception(f'{k} is not a column name of dataframe')
+
+        elif X is not None and y is not None:
+            if len(X) != len(y):
+                raise Exception('X and y are not the same length')
+            X = self.transfo_X('X', X)
+            y = self.transfo_X('y', y)
+            self.data = pd.concat([X, y], axis=1)
+        else :
+            raise Exception('You need to provide some data...')
+
+    def transfo_X(self, type_, data):
+
+        if type_ == 'X':
+            type_str = self.X_str
+        elif type_ == 'y':
+            type_str = self.y_str
+
+        if type(data) is pd.core.frame.DataFrame:
+            if type_str is not None:
+                for k in type_str:
+                    if k not in data.keys():
+                        raise Exception(f'{k} is not a column name of input')
+            else:
+                data.columns = [f"{type_}_{i}" for i in range(len(data.columns))]
+                print('Column names have been updated')
+                type_str = data.columns.values
+        elif type(data) is np.ndarray:
+            if data.dtype.names is None:
+                data.columns = [f"{type_}_{i}" for i in range(len(data.dtype))]
+                print('Column names have been updated')
+                type_str = data.columns.values
+                data = pd.DataFrame(data, columns = type_str)
+            else:
+                if self.data_str is not None:
+                    for k in type_str:
+                        if k not in data.dtype.names:
+                            raise Exception(f'{k} is not a column name of input')
+                else:
+                    type_str = data.dtype.names
+                data = pd.DataFrame(data)
+        if type_ == 'X':
+            self.X_str = type_str
+        elif type_ == 'y':
+            self.y_str = type_str
+        
+        return data
+
+                
+
+
+            
+    def load_data(self, filename):
+
+        # Check existence of the file
+        self.data = pd.read_csv(filename)
+
+        if self.X_str is None:
+            print("X_str not defined by user. Searching default labels...")
+            X_str = [label for label in self.data.columns if label[:2] == "X_"]
+            if not X_str:
                 raise Exception("Default labels not found for X in file {}. Please specify which columns to use in X_str.".format(filename))
 
-        if self.y_str == None:
+            self.X_str = X_str
+            print("Default labels found for X. Using X_str = {}".format(X_str))
+        if self.y_str is None:
             print("y_str not defined by user. Searching default labels...")
-            y_str = []
-            for label in data.columns:
-                if label[:2] == "_y": y_str.append(label)
-            if len(y_str) > 0:
-                self.y_str = y_str
-                print("Default labels found for y. Using y_str = {}".format(y_str))
-            else:
+            y_str = [label for label in self.data.columns if label[:2] == "y_"]
+            if not y_str:
                 raise Exception("Default labels not found for y in file {}. Please specify which columns to use in y_str.".format(filename))
-            
-        
-        if 'train' not in data.keys():
-            N = len(data)
-            data['train'] = np.ones(N)
-            
-            if split_ratio is not None: self.split_ratio = split_ratio
-            data['train'].iloc[np.random.choice(N, int(N*self.split_ratio))] = 0
-            
-        train_loc = data['train'] == 1
-        
-        self.X_train = data.loc[train_loc, self.X_str]
-        self.y_train = data.loc[train_loc, self.y_str]
-        self.X_test = data.loc[~train_loc, self.X_str]
-        self.y_test = data.loc[~train_loc, self.y_str]
-        
-        if len(self.X_train) == 0:
-            self.X_train, self.y_train = None, None
-        
-        if len(self.X_test) == 0:
-            self.X_test, self.y_test = None, None
-        
+
+
+            self.y_str = y_str
+            print("Default labels found for y. Using y_str = {}".format(y_str))
         if self.verbose:
                 print("Data loaded from {}".format(filename))
+
+    def select_test(self):
+
+        if 'train' not in self.data.keys():
+            # Add a column "train" set to 0 or 1 for test or train resp.
+            N = len(self.data)
+            self.data['train'] = np.ones(N)
+            self.data['train'].iloc[np.random.choice(N, int(N*self.split_ratio))] = 0
+
+        if len(self.X_train) == 0:
+            self.X_train, self.y_train = None, None
+
+        if len(self.X_test) == 0:
+            self.X_test, self.y_test = None, None
+
+    @property
+    def X_train(self):
+        return self.data.loc[self.data['train'] == 1, self.X_str]
+    @property
+    def y_train(self):
+        return self.data.loc[self.data['train'] == 1, self.y_str]
+    @property
+    def X_test(self):
+        return self.data.loc[self.data['train'] != 1, self.X_str]
+    @property
+    def y_test(self):
+        return self.data.loc[self.data['train'] != 1, self.y_str]
+
+
+
         
     def save_data(self, filename, X_train, y_train, X_test, y_test, X_str = None, y_str = None):
         if X_train is None and y_train is None:
@@ -1198,14 +1273,14 @@ class manage_RM_data():
             if x_columns == 0:
                 x_columns = self._get_shape(X_test)[1]
                 
-            X_str = ["_X" + str(i) for i in range(x_columns)]
+            X_str = ["X_" + str(i) for i in range(x_columns)]
             
         if y_str is None:
             y_columns = self._get_shape(y_train)[1]
             if y_columns == 0:
                 y_columns = self._get_shape(y_test)[1]
                 
-            y_str = ["_y" + str(i) for i in range(y_columns)]
+            y_str = ["y_" + str(i) for i in range(y_columns)]
         
         train = pd.concat([pd.DataFrame(X_train, columns = X_str),
                            pd.DataFrame(y_train, columns = y_str)], axis = 1)

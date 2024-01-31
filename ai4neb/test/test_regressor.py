@@ -6,7 +6,9 @@ Created on Thu Sep 12 16:01:37 2019
 @author: morisset
 """
 import numpy as np
-from ai4neb import manage_RM
+import pandas as pd
+
+from ai4neb import manage_RM, manage_data
 
 #%%
 
