@@ -210,10 +210,8 @@ class manage_RM(object):
     def _init_dims(self, train=True, test=True):
         
         def get_shape(a):
-            if a is None:
-                return 0, 0
-            else:
-                return a.shape
+            return (0, 0) if a is None else a.shape
+
         if train:
             self.N_train, self.N_in = get_shape(self.X_train) 
             self.N_train_y, self.N_out = get_shape(self.y_train)
@@ -222,10 +220,7 @@ class manage_RM(object):
             self.N_test_y, self.N_out_test = get_shape(self.y_test)
         
     def _len_None(self, v):
-        if v is None:
-            return 0
-        else:
-            return len(v)
+        return 0 if v is None else len(v)
         
     def _copy_None(self, v, add_dim=True):
         if v is None:
@@ -248,13 +243,13 @@ class manage_RM(object):
         
 
         if user_defined_RM is not None:
-            if type(user_defined_RM) is not dict:
+            if not isinstance(user_defined_RM, dict):
                 raise TypeError('user_defined_RM needs to be a dictionnary')
             if 'model' not in user_defined_RM:
                 raise ValueError('user_defined_RM dictionnary does not contain model')
             else:
                 user_defined_model = user_defined_RM['model']
-            if type(user_defined_model) is list:
+            if isinstance(user_defined_model, list):
                 self.RMs = user_defined_model
             else:
                 self.RMs = [user_defined_model]
@@ -272,10 +267,7 @@ class manage_RM(object):
             self._multi_predic = True
         elif self.RM_type == 'Poly':
             self.poly = []
-            if "degree" in kwargs:
-                degree = kwargs['degree']
-            else:
-                degree = 2
+            degree = kwargs['degree'] if "degree" in kwargs else 2
             for i in range(self.N_out):
                 self.poly.append(PolynomialFeatures(degree=degree))
                 self.RMs.append(LinearRegression())
@@ -312,13 +304,11 @@ class manage_RM(object):
             if not TF_OK:
                 raise ValueError('Tensorflow not installed, Keras RM_type not available')
             def get_kwargs(kw, default):
-                if kw in kwargs:
-                    return kwargs[kw]
-                else:
-                    return default
+                return kwargs[kw] if kw in kwargs else default
+
             activation = get_kwargs('activation', 'relu')
             kernel_initializer = get_kwargs('kernel_initializer', 
-                                            initializers.glorot_uniform(seed=self.random_seed))                
+                                            initializers.glorot_uniform(seed=self.random_seed))
             bias_initializer = get_kwargs('bias_initializer', 
                                             initializers.glorot_uniform(seed=self.random_seed))
             optimizer = get_kwargs('optimizer', get_kwargs('solver', 'adam'))
@@ -341,7 +331,7 @@ class manage_RM(object):
             if dropout is None:
                 d1 = 0.0
             else:
-                if type(dropout) in (type(()), type([])):
+                if isinstance(dropout, (list, tuple)):
                     d1 = dropout[0]
                 else:
                     d1 = dropout
@@ -354,10 +344,7 @@ class manage_RM(object):
                                 bias_initializer=bias_initializer,
                                 kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
                 if dropout is not None:
-                    if type(dropout) in (type(()), type([])):
-                        di = dropout[i_hl+1]
-                    else:
-                        di = dropout
+                    di = dropout[i_hl+1] if isinstance(dropout, (list, tuple)) else dropout
                     if di != 0.0:
                         model.add(Dropout(di, seed=random_state))
             if self.RM_type == 'K_ANN':
@@ -390,10 +377,8 @@ class manage_RM(object):
             self._multi_predic = True
         elif self.RM_type == 'KSK_ANN':
             def get_kwargs(kw, default):
-                if kw in kwargs:
-                    return kwargs[kw]
-                else:
-                    return default
+                return kwargs[kw] if kw in kwargs else default
+
             activation = get_kwargs('activation', 'relu')
             kernel_initializer = get_kwargs('kernel_initializer', 
                                             initializers.glorot_uniform(seed=self.random_seed))
@@ -406,7 +391,7 @@ class manage_RM(object):
             hidden_layer_sizes = get_kwargs('hidden_layer_sizes', (10,10))
             random_state = get_kwargs('random_state', self.random_seed)
             tf.random.set_random_seed(random_state)
-            
+
             def create_model(hidden_layer_sizes, N_in, activation, random_state,
                              N_out):
                 model = Sequential()
@@ -423,7 +408,7 @@ class manage_RM(object):
                               optimizer=optimizer, 
                               metrics=metrics)
                 return model
-                
+
             model = KerasRegressor(create_model, 
                                    hidden_layer_sizes = hidden_layer_sizes, 
                                    N_in = self.N_in,
@@ -457,13 +442,12 @@ class manage_RM(object):
             raise ValueError('Unkown Regression method {}'.format(self.RM_type))
         if self.verbose:
             print('Regression Model {}'.format(self.RM_type))
-
     def __add_noise(self, only_test=False):
         """
         Obsolete, noise has to be managed outside the class.
         """
         if self.noise is not None:
-            if type(self.noise) in (tuple, list):
+            if isinstance(self.noise, (tuple, list)):
                 noise_train = self.noise[0]
                 noise_test = self.noise[1]
             else:
@@ -494,7 +478,7 @@ class manage_RM(object):
         self.y_test_ori = self._copy_None(self.y_test)
 
         if self.y_vects is None:
-            if type(self.N_y_bins) is int:
+            if isinstance(self.N_y_bins, int):
                 self.N_y_bins = np.array([self.N_y_bins] * self.N_out)
             
             self.minmax = np.percentile(self.y_train, (2.5, 97.5), axis=0)
@@ -585,16 +569,16 @@ class manage_RM(object):
         """
         if X is None:
             return None, None
-        else:
-            n_keys = X.shape[1]
-            with np.errstate(invalid='ignore', divide='ignore'):
-                X = np.log10(X)
-            self.isfin = np.isfinite(X).sum(1) == n_keys
-            X = X[self.isfin]
-            if y is not None:
-                y = y[self.isfin]
-            
-            return X, y
+        # else:
+        n_keys = X.shape[1]
+        with np.errstate(invalid='ignore', divide='ignore'):
+            X = np.log10(X)
+        self.isfin = np.isfinite(X).sum(1) == n_keys
+        X = X[self.isfin]
+        if y is not None:
+            y = y[self.isfin]
+        
+        return X, y
         
     def _set_scaler(self, force=False):
         if (self.scaler is None) or force:
@@ -682,8 +666,7 @@ class manage_RM(object):
         """
         start = time.time()
         if not self.train_scaled and self.verbose:
-            if self.verbose:
-                print('WARNING: training data not scaled')
+            print('WARNING: training data not scaled')
         self.train_score = []
         self.history = []
         if self.N_train != self.N_train_y:
@@ -761,10 +744,10 @@ class manage_RM(object):
             f, ax = plt.subplots()
         if self.RMs is not None:
             for RM in self.RMs:
-                if self.RM_type[0:3] == 'SK_':
+                if self.RM_type[:3] == 'SK_':
                     self.loss_values = RM.loss_curve_
                     val_loss_values = None
-                elif self.RM_type[0:2] == 'K_':
+                elif self.RM_type[:2] == 'K_':
                     self.loss_values = self.history[i_RM].history['loss']
                     try:
                         val_loss_values = self.history[i_RM].history['val_loss']
@@ -927,10 +910,10 @@ class manage_RM(object):
         if save_train or save_test:
             if data_filename is None:
                 data_filename = filename
-            data_manager = manage_RM_data(verbose = self.verbose)
+            data_manager = manage_data(verbose = self.verbose)
             data_manager.save_data(data_filename + "_data.gzip", X_train, y_train, X_test, y_test, X_str, y_str)
         
-        if self.RM_type[0:3] == 'SK_': 
+        if self.RM_type[:3] == 'SK_': 
             to_save.append(self.RMs)
             joblib.dump(to_save, filename+'.ai4neb_sk', **kwargs)
             if self.verbose:
