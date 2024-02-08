@@ -1275,7 +1275,7 @@ class manage_data():
         
         data = pd.concat([train, test], ignore_index=True)
         
-        data.to_csv(filename, compression = "gzip", index = False)
+        data.to_csv(filename, index = False)
         if self.verbose:
             print("Data saved to {}".format(filename))
     
