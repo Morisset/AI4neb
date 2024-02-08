@@ -57,3 +57,4 @@ coverage.xml
 *.mwinai_sk
 *.mwinai_k0
 *.mwinai_k1
+*.h5
