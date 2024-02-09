@@ -331,10 +331,7 @@ class manage_RM(object):
             if dropout is None:
                 d1 = 0.0
             else:
-                if isinstance(dropout, (list, tuple)):
-                    d1 = dropout[0]
-                else:
-                    d1 = dropout
+                d1 = dropout[0] if isinstance(dropout, (list, tuple)) else dropout
             if d1 != 0.0:
                 model.add(Dropout(d1, seed=random_state, input_shape=(hidden_layer_sizes[0],)))
             for i_hl, hidden_layer_size in enumerate(hidden_layer_sizes[1:]):
