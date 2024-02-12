@@ -40,7 +40,6 @@ try:
     from tensorflow.keras.layers import Dense, Dropout
     from tensorflow.keras import backend as K
     from tensorflow.keras import initializers, regularizers
-    from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
     TF_OK = True
     keras_access = 'tf.keras'
 except:
@@ -48,7 +47,6 @@ except:
         import tensorflow as tf
         from keras.models import Sequential, load_model
         from keras.layers import Dense, Dropout
-        from keras.wrappers.scikit_learn import KerasRegressor
         from keras import backend as K
         from keras import initializers, regularizers
         TF_OK = True
@@ -60,12 +58,17 @@ except:
             from tensorflow.python.keras.layers import Dense, Dropout
             from tensorflow.python.keras import backend as K
             from tensorflow.python.keras import initializers, regularizers
-            from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
             TF_OK = True
             keras_access = 'tf.python.keras'
         except:
             TF_OK = False
-            
+
+try:
+    from scikeras.wrappers import KerasRegressor
+    KSK_OK = True
+except:
+    KSK_OK = False
+
 try:
     import xgboost as xgb
     XGB_OK = True
@@ -373,6 +376,8 @@ class manage_RM(object):
                                  'validation_split': validation_split}
             self._multi_predic = True
         elif self.RM_type == 'KSK_ANN':
+            if not KSK_OK:
+                raise ValueError('scikeras not installed, KSK_ANN RM_type not available')
             def get_kwargs(kw, default):
                 return kwargs[kw] if kw in kwargs else default
 
@@ -387,7 +392,7 @@ class manage_RM(object):
             validation_split = get_kwargs('validation_split', 0.0)
             hidden_layer_sizes = get_kwargs('hidden_layer_sizes', (10,10))
             random_state = get_kwargs('random_state', self.random_seed)
-            tf.random.set_random_seed(random_state)
+            tf.random.set_seed(random_state)
 
             def create_model(hidden_layer_sizes, N_in, activation, random_state,
                              N_out):
@@ -443,28 +448,7 @@ class manage_RM(object):
         """
         Obsolete, noise has to be managed outside the class.
         """
-        if self.noise is not None:
-            if isinstance(self.noise, (tuple, list)):
-                noise_train = self.noise[0]
-                noise_test = self.noise[1]
-            else:
-                noise_train = self.noise
-                noise_test = self.noise
-                
-            if not only_test:
-                self.X_train *= 1 + np.random.normal(0.0, noise_train, self.X_train.shape)
-                train_str = ' and {} to train'.format(noise_train)
-            else:
-                train_str = ''
-            
-            if self.X_test is not None:
-                self.X_test *= 1 + np.random.normal(0.0, noise_test, self.X_test.shape)
-                test_str = ' {} to test'.format(noise_test)
-            else:
-                test_str = ''
-            
-            if self.verbose:
-                print("Adding noise{}{}.".format(test_str, train_str))
+        pass
             
     def discretize(self):
         
