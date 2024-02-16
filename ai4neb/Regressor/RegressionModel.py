@@ -10,6 +10,7 @@ import numpy as np
 import time
 import random
 from glob import glob
+from copy import deepcopy
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, RobustScaler, PolynomialFeatures
@@ -699,7 +700,16 @@ class manage_RM(object):
                 y_train = np.ravel(self.y_train)
             else:
                 y_train = self.y_train
-            history = RM.fit(self.X_train, y_train, **self.train_params)
+            if ("batch_size" in **self.train_params) and ("epochs" in **self.train_params) and \
+                (isinstance(**self.train_params["batch_size"], (tuple, list))) and \
+                (isinstance(**self.train_params["epochs"], (tuple, list))):
+                    train_params = deepcopy(**self.train_params)
+                    for bsize, epocs in zip(**self.train_params["batch_size"], **self.train_params["epochs"]):
+                        train_params["batch_size"] = bsize
+                        train_params["epochs"] = epocs
+                        history = RM.fit(self.X_train, y_train, train_params)
+            else:
+                history = RM.fit(self.X_train, y_train, **self.train_params)
             self.history = [history]
             if scoring:
                 train_score = score(RM, self.X_train, y_train)
