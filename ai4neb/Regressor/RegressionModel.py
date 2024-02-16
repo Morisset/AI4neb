@@ -682,8 +682,7 @@ class manage_RM(object):
         """
         start = time.time()
         if not self.train_scaled and self.verbose:
-            if self.verbose:
-                print('WARNING: training data not scaled')
+            print('WARNING: training data not scaled')
         self.train_score = []
         self.history = []
         if self.N_train != self.N_train_y:
@@ -708,7 +707,7 @@ class manage_RM(object):
                         train_params["batch_size"] = bsize
                         train_params["epochs"] = epocs
                         print(train_params)
-                        history = RM.fit(self.X_train, y_train, train_params)
+                        history = RM.fit(self.X_train, y_train, **train_params)
             else:
                 history = RM.fit(self.X_train, y_train, **self.train_params)
             self.history = [history]
