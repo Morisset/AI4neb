@@ -707,6 +707,7 @@ class manage_RM(object):
                     for bsize, epocs in zip(self.train_params["batch_size"], self.train_params["epochs"]):
                         train_params["batch_size"] = bsize
                         train_params["epochs"] = epocs
+                        print(train_params)
                         history = RM.fit(self.X_train, y_train, train_params)
             else:
                 history = RM.fit(self.X_train, y_train, **self.train_params)
