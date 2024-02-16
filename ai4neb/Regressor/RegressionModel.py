@@ -700,11 +700,11 @@ class manage_RM(object):
                 y_train = np.ravel(self.y_train)
             else:
                 y_train = self.y_train
-            if ("batch_size" in **self.train_params) and ("epochs" in **self.train_params) and \
-                (isinstance(**self.train_params["batch_size"], (tuple, list))) and \
-                (isinstance(**self.train_params["epochs"], (tuple, list))):
-                    train_params = deepcopy(**self.train_params)
-                    for bsize, epocs in zip(**self.train_params["batch_size"], **self.train_params["epochs"]):
+            if ("batch_size" in self.train_params) and ("epochs" in self.train_params) and \
+                (isinstance(self.train_params["batch_size"], (tuple, list))) and \
+                (isinstance(self.train_params["epochs"], (tuple, list))):
+                    train_params = deepcopy(self.train_params)
+                    for bsize, epocs in zip(self.train_params["batch_size"], self.train_params["epochs"]):
                         train_params["batch_size"] = bsize
                         train_params["epochs"] = epocs
                         history = RM.fit(self.X_train, y_train, train_params)
