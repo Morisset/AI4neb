@@ -706,7 +706,6 @@ class manage_RM(object):
                     for bsize, epocs in zip(self.train_params["batch_size"], self.train_params["epochs"]):
                         train_params["batch_size"] = bsize
                         train_params["epochs"] = epocs
-                        print(train_params)
                         history = RM.fit(self.X_train, y_train, **train_params)
             else:
                 history = RM.fit(self.X_train, y_train, **self.train_params)
@@ -770,10 +769,10 @@ class manage_RM(object):
             f, ax = plt.subplots()
         if self.RMs is not None:
             for RM in self.RMs:
-                if self.RM_type[0:3] == 'SK_':
+                if self.RM_type[:3] == 'SK_':
                     self.loss_values = RM.loss_curve_
                     val_loss_values = None
-                elif self.RM_type[0:2] == 'K_':
+                elif self.RM_type[:2] == 'K_':
                     self.loss_values = self.history[i_RM].history['loss']
                     try:
                         val_loss_values = self.history[i_RM].history['val_loss']
