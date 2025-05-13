@@ -32,12 +32,14 @@ except:
 
 # Keras
 keras_access= 'Not installed'
+keras_version = '-1'
 try:
     import tensorflow as tf
     from tensorflow.keras.models import Sequential, load_model
     from tensorflow.keras.layers import Dense, Dropout
     from tensorflow.keras import backend as K
     from tensorflow.keras import initializers, regularizers
+    from tensorflow.keras import __version__ as keras_version
     TF_OK = True
     keras_access = 'tf.keras'
 except:
@@ -47,6 +49,7 @@ except:
         from keras.layers import Dense, Dropout
         from keras import backend as K
         from keras import initializers, regularizers
+        from keras import __version__ as keras_version
         TF_OK = True
         keras_access = 'keras'
     except:
@@ -56,6 +59,7 @@ except:
             from tensorflow.python.keras.layers import Dense, Dropout
             from tensorflow.python.keras import backend as K
             from tensorflow.python.keras import initializers, regularizers
+            from tensorflow.python.keras import __version__ as keras_version
             TF_OK = True
             keras_access = 'tf.python.keras'
         except:
@@ -94,6 +98,7 @@ class manage_RM(object):
     """
     TF_OK = TF_OK
     keras_access = keras_access
+    keras_version = keras_version
     def __init__(self, RM_type = 'SK_ANN',
                  X_train=None, y_train=None, 
                  X_test=None, y_test=None,
@@ -934,9 +939,15 @@ class manage_RM(object):
             if self.verbose:
                 print('RM save to {}.ai4neb_k0'.format(filename))
             for i, RM in enumerate(self.RMs):
-                RM.save('{}.ai4neb_k{}'.format(filename, i+1), **kwargs)
-                if self.verbose:
-                    print('RM save to {}.ai4neb_k{}'.format(filename, i+1))
+                if keras_version.split('.')[0] != '3':
+                    RM.save('{}.ai4neb_k{}'.format(filename, i+1), **kwargs)
+                    if self.verbose:
+                        print('RM save to {}.ai4neb_k{}'.format(filename, i+1))
+                else:
+                    RM.save('{}_{}.keras'.format(filename, i+1), **kwargs)
+                    if self.verbose:
+                        print('RM save to {}_{}.keras'.format(filename, i+1))
+
         elif self.RM_type == 'XGB':
             to_save.append(None)
             joblib.dump(to_save, filename+'.ai4neb_xgb0')
@@ -957,8 +968,7 @@ class manage_RM(object):
                     print('RM save to {}.ai4neb_catb{}'.format(filename, i+1))
         else:
            print('Do not know how to save {} machine'.format(self.RM_type))
-        
-            
+                    
     def load_RM(self, filename='RM', notry=False, compile_=False):
         """
         Loading previously saved model.
@@ -1034,18 +1044,33 @@ class manage_RM(object):
             self.model_read = False
             print('!! ERROR. This version is not supported.')
         if format_to_read == 'K':
-            if notry:
-                self.RMs = [load_model("{}.ai4neb_k1".format(filename))]
-                if self.verbose:
-                    print('RM loaded from {}.ai4neb_k1'.format(filename))
-            else:
-                try:
+            if keras_version.split('.')[0] != '3':
+                if notry:
                     self.RMs = [load_model("{}.ai4neb_k1".format(filename))]
                     if self.verbose:
                         print('RM loaded from {}.ai4neb_k1'.format(filename))
-                except:
-                    self.model_read = False
-                    print('!! ERROR reading {}.ai4neb_k1'.format(filename))
+                else:
+                    try:
+                        self.RMs = [load_model("{}.ai4neb_k1".format(filename))]
+                        if self.verbose:
+                            print('RM loaded from {}.ai4neb_k1'.format(filename))
+                    except:
+                        self.model_read = False
+                        print('!! ERROR reading {}.ai4neb_k1'.format(filename))
+            else:
+                if notry:
+                    self.RMs = [load_model("{}_1.keras".format(filename))]
+                    if self.verbose:
+                        print('RM loaded from {}_1.keras'.format(filename))
+                else:
+                    try:
+                        self.RMs = [load_model("{}_1.keras".format(filename))]
+                        if self.verbose:
+                            print('RM loaded from {}_1.keras'.format(filename))
+                    except:
+                        self.model_read = False
+                        print('!! ERROR reading {}_1.keras'.format(filename))
+
         elif format_to_read == 'XGB':
             try:
                 self.RMs = []
