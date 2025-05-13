@@ -10,6 +10,7 @@ import numpy as np
 import time
 import random
 from glob import glob
+from copy import deepcopy
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, RobustScaler, PolynomialFeatures
@@ -37,7 +38,6 @@ try:
     from tensorflow.keras.layers import Dense, Dropout
     from tensorflow.keras import backend as K
     from tensorflow.keras import initializers, regularizers
-    from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
     TF_OK = True
     keras_access = 'tf.keras'
 except:
@@ -45,7 +45,6 @@ except:
         import tensorflow as tf
         from keras.models import Sequential, load_model
         from keras.layers import Dense, Dropout
-        from keras.wrappers.scikit_learn import KerasRegressor
         from keras import backend as K
         from keras import initializers, regularizers
         TF_OK = True
@@ -57,7 +56,6 @@ except:
             from tensorflow.python.keras.layers import Dense, Dropout
             from tensorflow.python.keras import backend as K
             from tensorflow.python.keras import initializers, regularizers
-            from tensorflow.python.keras.wrappers.scikit_learn import KerasRegressor
             TF_OK = True
             keras_access = 'tf.python.keras'
         except:
@@ -81,6 +79,12 @@ try:
     CB_OK = True
 except:
     CB_OK = False    
+
+try:
+    from scikeras.wrappers import KerasRegressor
+    scikeras_OK = True
+except:
+    scikeras_OK = False
             
 RM_version = "0.17"
 #%% Main class
@@ -383,6 +387,8 @@ class manage_RM(object):
                                  'validation_split': validation_split}
             self._multi_predic = True
         elif self.RM_type == 'KSK_ANN':
+            pass
+            
             def get_kwargs(kw, default):
                 if kw in kwargs:
                     return kwargs[kw]
@@ -676,8 +682,7 @@ class manage_RM(object):
         """
         start = time.time()
         if not self.train_scaled and self.verbose:
-            if self.verbose:
-                print('WARNING: training data not scaled')
+            print('WARNING: training data not scaled')
         self.train_score = []
         self.history = []
         if self.N_train != self.N_train_y:
@@ -694,7 +699,16 @@ class manage_RM(object):
                 y_train = np.ravel(self.y_train)
             else:
                 y_train = self.y_train
-            history = RM.fit(self.X_train, y_train, **self.train_params)
+            if ("batch_size" in self.train_params) and ("epochs" in self.train_params) and \
+                (isinstance(self.train_params["batch_size"], (tuple, list))) and \
+                (isinstance(self.train_params["epochs"], (tuple, list))):
+                    train_params = deepcopy(self.train_params)
+                    for bsize, epocs in zip(self.train_params["batch_size"], self.train_params["epochs"]):
+                        train_params["batch_size"] = bsize
+                        train_params["epochs"] = epocs
+                        history = RM.fit(self.X_train, y_train, **train_params)
+            else:
+                history = RM.fit(self.X_train, y_train, **self.train_params)
             self.history = [history]
             if scoring:
                 train_score = score(RM, self.X_train, y_train)
@@ -755,10 +769,10 @@ class manage_RM(object):
             f, ax = plt.subplots()
         if self.RMs is not None:
             for RM in self.RMs:
-                if self.RM_type[0:3] == 'SK_':
+                if self.RM_type[:3] == 'SK_':
                     self.loss_values = RM.loss_curve_
                     val_loss_values = None
-                elif self.RM_type[0:2] == 'K_':
+                elif self.RM_type[:2] == 'K_':
                     self.loss_values = self.history[i_RM].history['loss']
                     try:
                         val_loss_values = self.history[i_RM].history['val_loss']
