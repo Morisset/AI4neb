@@ -54,6 +54,6 @@ nosetests.xml
 coverage.xml
 *.cover
 
-*.mwinai_sk
-*.mwinai_k0
-*.mwinai_k1
+docs/*.ai4neb_*
+docs/*.keras
+
