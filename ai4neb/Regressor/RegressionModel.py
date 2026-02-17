@@ -21,9 +21,10 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.linear_model import BayesianRidge, SGDRegressor, LinearRegression
 from sklearn.ensemble import AdaBoostRegressor, RandomForestRegressor, GradientBoostingRegressor
 from sklearn.decomposition import PCA
-from sklearn.utils import parallel_backend
+#from sklearn.utils import parallel_backend
 try:
     import joblib
+    
 except:
     try:
         from sklearn.externals import joblib
