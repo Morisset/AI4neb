@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai4neb"
+version = "0.3.1"
+description = "A package to develop AI tools for Nebular studies"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [{ name = "Christophe Morisset", email = "Chris.Morisset@gmail.com" }]
+license = { text = "GPL-3.0-only" }
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+]
+
+dependencies = [
+  "numpy",
+  "scikit-learn",
+  # add runtime deps here (e.g. scipy, scikit-learn, tensorflow, etc.)
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
