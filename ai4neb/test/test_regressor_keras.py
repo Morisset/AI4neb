@@ -123,12 +123,15 @@ def test_kann_early_stopping_accepts_overrides(data):
 # --------------------------------------------------------------------------- #
 # §5 - explicit Input layer: no input_dim/input_shape deprecation warning
 # --------------------------------------------------------------------------- #
-def test_kann_no_input_dim_warning(data):
+@pytest.mark.parametrize("dropout", [None, (0.2, 0.3)])
+def test_kann_no_input_dim_warning(data, dropout):
+    # the first Dropout layer used to carry input_shape=..., which re-triggered
+    # the Keras 3 warning whenever dropout was enabled
     X, y = data
     RM = manage_RM(RM_type='K_ANN', X_train=X, y_train=y, random_seed=10)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        RM.init_RM(hidden_layer_sizes=(5,), epochs=1)
+        RM.init_RM(hidden_layer_sizes=(6, 4), epochs=1, dropout=dropout)
     msgs = " ".join(str(w.message) for w in caught)
     assert "input_dim" not in msgs and "input_shape" not in msgs
 

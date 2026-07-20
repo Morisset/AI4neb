@@ -355,7 +355,7 @@ class manage_RM(object):
                 else:
                     d1 = dropout
             if d1 != 0.0:
-                model.add(Dropout(d1, seed=random_state, input_shape=(hidden_layer_sizes[0],)))
+                model.add(Dropout(d1, seed=random_state))
             for i_hl, hidden_layer_size in enumerate(hidden_layer_sizes[1:]):
                 model.add(Dense(hidden_layer_size, 
                                 activation=activation, 
