@@ -530,21 +530,20 @@ class manage_RM(object):
         self.discretized = True
         
     def _discretize1(self, y):
-        
+
         if y is None:
             return None
         new_y = self.min_discret * np.ones((y.shape[0], self.N_y_bins.sum()))
-        
+        cumsum_bins = np.cumsum(self.N_y_bins)
 #        for i in np.arange(self.N_out):
         for i in np.arange(y.shape[1]):
             tt = np.round((y[:,i] - self.minmax[0,i]) / self.deltas[i] * (self.N_y_bins[i] - 1)).astype(int)
-            tt = np.where(tt < 0, 0, tt)
-            tt = np.where(tt > self.N_y_bins[i]-1, self.N_y_bins[i]-1, tt)
+            tt = np.clip(tt, 0, self.N_y_bins[i] - 1)
             if i > 0:
-                tt += np.cumsum(self.N_y_bins)[i-1]
+                tt += cumsum_bins[i-1]
             new_y[(np.arange(y.shape[0]), tt)] = self.max_discret
 #            if self.verbose:
-#                print("Discretizing column {} on {} bins".format(i, self.N_y_bins[i])) 
+#                print("Discretizing column {} on {} bins".format(i, self.N_y_bins[i]))
         return new_y
             
     def __set_train(self, X=None, y=None):
@@ -764,8 +763,8 @@ class manage_RM(object):
 
     def _norm_pred(self):
         self.pred_ori = self._copy_None(self.pred)
-        tmp = self.pred - np.expand_dims(self.pred.min(1), axis=1)
-        self.pred_norm =  tmp / np.expand_dims(tmp.sum(1), axis=1)
+        tmp = self.pred - self.pred.min(1, keepdims=True)
+        self.pred_norm = tmp / tmp.sum(1, keepdims=True)
                 
     def plot_loss(self, ax=None, i_RM=0, **kwargs):
         
@@ -858,12 +857,10 @@ class manage_RM(object):
                 self.pred_mean = np.zeros((self.N_test, len(self.N_y_bins)))
                 self.pred_mean_norm = np.zeros((self.N_test, len(self.N_y_bins)))
                 self.pred_max = np.zeros((self.N_test, len(self.N_y_bins)))
+                cumsum_bins = self.N_y_bins.cumsum()
                 for i in np.arange(len(self.N_y_bins)):
-                    if i == 0:
-                        i_inf = 0
-                    else:
-                        i_inf = self.N_y_bins.cumsum()[i-1]
-                    i_sup = self.N_y_bins.cumsum()[i]
+                    i_inf = 0 if i == 0 else cumsum_bins[i-1]
+                    i_sup = cumsum_bins[i]
                     self.pred_mean[:,i] = np.dot(self.pred[:,i_inf:i_sup],self.y_vects[i])
                     self.pred_mean_norm[:,i] = np.dot(self.pred_norm[:,i_inf:i_sup],self.y_vects[i])
                     self.pred_max[:,i] = self.y_vects[i, np.argmax(self.pred_norm[:,i_inf:i_sup], 1)]
@@ -873,7 +870,7 @@ class manage_RM(object):
                 print('Reducing y by mean')
             elif reduce_by == 'mean_norm':
                 self.pred = self.pred_mean_norm
-                print('Reducing y by mean')
+                print('Reducing y by normalized mean')
             elif reduce_by == 'max':
                 self.pred = self.pred_max
                 print('Reducing y by max')
@@ -1088,7 +1085,7 @@ class manage_RM(object):
             try:
                 self.RMs = []
                 for i in np.arange(self.N_out)+1:
-                    self.RMs.append(xgb.XGBRegressor())
+                    self.RMs.append(catboost.CatBoostRegressor())
                     self.RMs[i-1].load_model('{}.ai4neb_catb{}'.format(filename, i))
                     if self.verbose:
                         print('RM loaded from {}.ai4neb_catb{}'.format(filename, i))
