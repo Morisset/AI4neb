@@ -5,7 +5,7 @@ This document reports the changes made to `ai4neb` in this working session. Unli
 done), this file records what was **actually implemented, verified, and committed**.
 
 All work landed on branch `fabel_optmization` in the commit range `14a12f5..HEAD`.
-The full test suite (`ai4neb/test/`) passes: **32 passed**.
+The full test suite (`ai4neb/test/`) passes: **33 passed**.
 
 ---
 
@@ -63,6 +63,10 @@ the optimized defaults a comparable fit is reached in a few seconds.
   and parameter count; removes the Keras 3 `UserWarning` and is future-proof.
 - Imports updated in all three keras-access fallback blocks: added `Input` to the layers
   import and `optimizers`, `callbacks` to the top-level keras import.
+- Follow-up fix: the first `Dropout` layer still passed `input_shape=(...)`, so building a
+  `K_ANN` **with dropout** re-triggered the same warning. Removed that argument (redundant —
+  the Dropout follows the first Dense, whose output shape is known). The warning regression
+  test now also covers the dropout path.
 
 ### 1.6 Optimized defaults (out-of-the-box tuning)
 - `learning_rate` default: **0.01** (was Adam's stock 0.001). 10× faster convergence for
@@ -73,6 +77,20 @@ the optimized defaults a comparable fit is reached in a few seconds.
   `early_stopping=False`.
 - Note: `patience=100` counts *tiled* epochs, so on small datasets early stopping is a
   soft convergence guard (each tiled epoch is many real gradient steps), not a hard cap.
+
+### 1.7 Usage notes / gotchas observed in practice
+- **`validation_split` disables tiling.** When `validation_split > 0`, `_tile_for_keras`
+  returns the data unchanged (duplicated rows would leak across Keras's end-of-array
+  validation cut), so the run trains the full `epochs` with no speedup. To get tiling's
+  speed, hold out test data via `split_ratio` instead and leave `validation_split=0`.
+- **Default early stopping monitors training `loss`.** With `dropout` and/or a
+  `validation_split`, monitoring the (noisy) training loss is usually not what you want —
+  pass `early_stopping={'monitor': 'val_loss'}` so it stops on generalization and
+  `restore_best_weights` restores the best *validation* epoch.
+- **Small nets at low epoch counts need a higher `lr`.** With the default `lr=0.01`, a
+  tiny net (e.g. `(2,)`) needs enough gradient steps to converge: `epochs=2000` under-fits
+  (RMS ≈ 0.13) whereas `epochs=15500` converges (RMS ≈ 0.039). Raising `learning_rate` to
+  0.05 makes `epochs=2000` converge (RMS ≈ 0.039) — matching the notebook's raw-TF cell.
 
 ---
 
@@ -175,10 +193,11 @@ reinstall.
 | `e30bfb4` | remove unused `version.py` |
 | `0ff94a6` | expose `ai4neb.__version__` from installed package metadata |
 | `1d1f3e5` | report live `pyproject.toml` version from a source/editable checkout |
+| `5756be7` | drop `input_shape` from the first Dropout layer (Keras 3 warning) |
 
 ## 6. Verification
 
-- `python -m pytest ai4neb/test/ -q` → **32 passed**.
+- `python -m pytest ai4neb/test/ -q` → **33 passed**.
 - Notebook `K_ANN` scenario (`docs/ComparePolynom.ipynb`) reproduced with default kwargs:
   same fit quality (RMS test ≈ 0.039), faster wall-clock; with the optimized defaults the
   fit is reached in a few seconds.
