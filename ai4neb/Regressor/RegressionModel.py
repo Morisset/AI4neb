@@ -326,7 +326,7 @@ class manage_RM(object):
             bias_initializer = get_kwargs('bias_initializer', 
                                             initializers.glorot_uniform(seed=self.random_seed))
             optimizer = get_kwargs('optimizer', get_kwargs('solver', 'adam'))
-            learning_rate = get_kwargs('learning_rate', get_kwargs('lr', 0.001))
+            learning_rate = get_kwargs('learning_rate', get_kwargs('lr', 0.01))
             if optimizer == 'adam':
                 optimizer = optimizers.Adam(learning_rate=learning_rate)
             epochs = get_kwargs('epochs', 100)
@@ -337,7 +337,7 @@ class manage_RM(object):
             dropout = get_kwargs('dropout', None)
             L1 = get_kwargs('L1', 0.)
             L2 = get_kwargs('L2', 0.)
-            early_stopping = get_kwargs('early_stopping', False)
+            early_stopping = get_kwargs('early_stopping', True)
             tf.compat.v1.random.set_random_seed(random_state)
             model = Sequential()
             model.add(Input(shape=(self.N_in,)))
