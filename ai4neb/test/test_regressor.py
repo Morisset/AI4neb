@@ -78,6 +78,21 @@ def test_dims_and_pred_shape(data, Xkey, ykey, exp_in, exp_out):
 
 
 # --------------------------------------------------------------------------- #
+# A numpy integer seed (e.g. from `4 + np.arange(5)`) is accepted
+# (regression test: stdlib random.seed rejects numpy integer types)
+# --------------------------------------------------------------------------- #
+def test_numpy_integer_seed(data):
+    X1, y1, _, _ = data
+    for r_seed in 4 + np.arange(3):
+        assert not isinstance(r_seed, int)          # it's a numpy scalar
+        RM = manage_RM(RM_type='SK_ANN', X_train=X1, y_train=y1,
+                       split_ratio=0.3, random_seed=r_seed)
+        assert isinstance(RM.random_seed, int)      # normalised to native int
+        RM.init_RM(hidden_layer_sizes=(10,), max_iter=200)
+        RM.train_RM()                               # must not raise
+
+
+# --------------------------------------------------------------------------- #
 # The pipeline actually learns on strong backends
 # --------------------------------------------------------------------------- #
 def test_sk_ann_learns(data):

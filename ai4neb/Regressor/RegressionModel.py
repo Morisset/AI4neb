@@ -207,6 +207,10 @@ class manage_RM(object):
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
         
     def init_random(self, seed):
+        # numpy scalars (e.g. np.int64 from `4 + np.arange(5)`) must be cast to
+        # native Python types: stdlib random.seed rejects numpy integer types.
+        if seed is not None and hasattr(seed, 'item'):
+            seed = seed.item()
         self.random_seed = seed
         np.random.seed(self.random_seed)
         random.seed(self.random_seed)

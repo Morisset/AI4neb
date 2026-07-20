@@ -5,7 +5,7 @@ This document reports the changes made to `ai4neb` in this working session. Unli
 done), this file records what was **actually implemented, verified, and committed**.
 
 All work landed on branch `fabel_optmization` in the commit range `14a12f5..HEAD`.
-The full test suite (`ai4neb/test/`) passes: **33 passed**.
+The full test suite (`ai4neb/test/`) passes: **34 passed**.
 
 ---
 
@@ -114,6 +114,14 @@ Affected `SK_ANN`, `K_ANN`, `SK_RFR`, `SK_GPR`. Two root causes:
 each set the other `*_unscaled` attributes and omitted this one. Added the missing
 assignment to all three, so the unscaled test set is available to save and round-trips.
 
+### 2.3 `random_seed` as a numpy integer raised `TypeError`
+Passing a numpy scalar seed (e.g. `for r_seed in 4 + np.arange(5)`) crashed in
+`init_random`: stdlib `random.seed()` accepts only `None, int, float, str, bytes,
+bytearray` and rejects numpy integer types (`np.int64`). `init_random` now casts a numpy
+scalar seed to its native Python type (`seed.item()`) before use, so numpy int/float seeds
+work and `self.random_seed` is stored as a clean native `int`. Regression test:
+`test_numpy_integer_seed`.
+
 ---
 
 ## 3. Test suite rewrite
@@ -194,10 +202,11 @@ reinstall.
 | `0ff94a6` | expose `ai4neb.__version__` from installed package metadata |
 | `1d1f3e5` | report live `pyproject.toml` version from a source/editable checkout |
 | `5756be7` | drop `input_shape` from the first Dropout layer (Keras 3 warning) |
+| _(this change)_ | accept numpy-integer `random_seed` (cast to native Python type) |
 
 ## 6. Verification
 
-- `python -m pytest ai4neb/test/ -q` → **33 passed**.
+- `python -m pytest ai4neb/test/ -q` → **34 passed**.
 - Notebook `K_ANN` scenario (`docs/ComparePolynom.ipynb`) reproduced with default kwargs:
   same fit quality (RMS test ≈ 0.039), faster wall-clock; with the optimized defaults the
   fit is reached in a few seconds.
