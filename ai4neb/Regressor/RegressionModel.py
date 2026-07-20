@@ -37,9 +37,9 @@ keras_version = '-1'
 try:
     import tensorflow as tf
     from tensorflow.keras.models import Sequential, load_model
-    from tensorflow.keras.layers import Dense, Dropout
+    from tensorflow.keras.layers import Dense, Dropout, Input
     from tensorflow.keras import backend as K
-    from tensorflow.keras import initializers, regularizers
+    from tensorflow.keras import initializers, regularizers, optimizers, callbacks
     from tensorflow.keras import __version__ as keras_version
     TF_OK = True
     keras_access = 'tf.keras'
@@ -47,9 +47,9 @@ except:
     try:
         import tensorflow as tf
         from keras.models import Sequential, load_model
-        from keras.layers import Dense, Dropout
+        from keras.layers import Dense, Dropout, Input
         from keras import backend as K
-        from keras import initializers, regularizers
+        from keras import initializers, regularizers, optimizers, callbacks
         from keras import __version__ as keras_version
         TF_OK = True
         keras_access = 'keras'
@@ -57,9 +57,9 @@ except:
         try:
             import tensorflow as tf
             from tensorflow.python.keras.models import Sequential, load_model
-            from tensorflow.python.keras.layers import Dense, Dropout
+            from tensorflow.python.keras.layers import Dense, Dropout, Input
             from tensorflow.python.keras import backend as K
-            from tensorflow.python.keras import initializers, regularizers
+            from tensorflow.python.keras import initializers, regularizers, optimizers, callbacks
             from tensorflow.python.keras import __version__ as keras_version
             TF_OK = True
             keras_access = 'tf.python.keras'
@@ -326,6 +326,9 @@ class manage_RM(object):
             bias_initializer = get_kwargs('bias_initializer', 
                                             initializers.glorot_uniform(seed=self.random_seed))
             optimizer = get_kwargs('optimizer', get_kwargs('solver', 'adam'))
+            learning_rate = get_kwargs('learning_rate', get_kwargs('lr', 0.001))
+            if optimizer == 'adam':
+                optimizer = optimizers.Adam(learning_rate=learning_rate)
             epochs = get_kwargs('epochs', 100)
             batch_size = get_kwargs('batch_size', None)
             validation_split = get_kwargs('validation_split', 0.0)
@@ -334,10 +337,11 @@ class manage_RM(object):
             dropout = get_kwargs('dropout', None)
             L1 = get_kwargs('L1', 0.)
             L2 = get_kwargs('L2', 0.)
+            early_stopping = get_kwargs('early_stopping', False)
             tf.compat.v1.random.set_random_seed(random_state)
             model = Sequential()
-            model.add(Dense(hidden_layer_sizes[0], 
-                            input_dim=self.N_in, 
+            model.add(Input(shape=(self.N_in,)))
+            model.add(Dense(hidden_layer_sizes[0],
                             kernel_initializer=kernel_initializer,
                             bias_initializer=bias_initializer,
                             activation=activation,
@@ -370,9 +374,9 @@ class manage_RM(object):
                                 kernel_initializer=kernel_initializer,
                                 bias_initializer=bias_initializer,
                                 kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
-                metrics = get_kwargs('metrics', ['mse','mae'])
-                model.compile(loss='mse', 
-                              optimizer=optimizer, 
+                metrics = get_kwargs('metrics', None)
+                model.compile(loss='mse',
+                              optimizer=optimizer,
                               metrics=metrics)
             elif self.RM_type == 'K_ANN_Dis':
                 model.add(Dense(self.N_out, 
@@ -387,10 +391,15 @@ class manage_RM(object):
             if self.verbose:
                 model.summary()
             self.RMs = [model]
-            self.train_params = {'epochs': epochs, 
-                                 'batch_size': batch_size, 
-                                 'verbose': False, 
+            self.train_params = {'epochs': epochs,
+                                 'batch_size': batch_size,
+                                 'verbose': False,
                                  'validation_split': validation_split}
+            if early_stopping:
+                es_kwargs = {} if early_stopping is True else early_stopping
+                es_config = {'monitor': 'loss', 'patience': 100, 'restore_best_weights': True}
+                es_config.update(es_kwargs)
+                self.train_params['callbacks'] = [callbacks.EarlyStopping(**es_config)]
             self._multi_predic = True
         elif self.RM_type == 'KSK_ANN':
             pass
@@ -416,8 +425,8 @@ class manage_RM(object):
             def create_model(hidden_layer_sizes, N_in, activation, random_state,
                              N_out):
                 model = Sequential()
-                model.add(Dense(hidden_layer_sizes[0], 
-                                input_dim=N_in, 
+                model.add(Input(shape=(N_in,)))
+                model.add(Dense(hidden_layer_sizes[0],
                                 activation=activation))
                 for hidden_layer_size in hidden_layer_sizes[1:]:
                     model.add(Dense(hidden_layer_size, 
@@ -681,6 +690,40 @@ class manage_RM(object):
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
 
+    def _tile_for_keras(self, X, y, params):
+        """
+        Tile a small training set k times and divide epochs by k, so that
+        the fixed per-epoch overhead of model.fit is paid epochs/k times
+        instead of epochs times. With shuffle=False and an unchanged
+        batch_size, every tiled repetition reproduces the exact same
+        sequence of batches, so this is mathematically equivalent to plain
+        full training - only the bookkeeping cost changes.
+        """
+        epochs = params.get('epochs', 100)
+        batch_size = params.get('batch_size', None)
+        if params.get('validation_split', 0.0):
+            return X, y, params
+        n_samples = X.shape[0]
+        effective_batch = min(batch_size, n_samples) if batch_size else n_samples
+        steps_per_epoch = int(np.ceil(n_samples / effective_batch))
+        if steps_per_epoch >= 10:
+            return X, y, params
+        k = max(1, min(100, epochs // 20))
+        if k <= 1 or n_samples * k > 1e6:
+            return X, y, params
+        X_rep = np.tile(X, (k, 1))
+        y_rep = np.tile(y, (k, 1) if y.ndim > 1 else k)
+        new_params = dict(params)
+        new_params['epochs'] = max(1, epochs // k)
+        new_params['batch_size'] = effective_batch
+        new_params['shuffle'] = False
+        return X_rep, y_rep, new_params
+
+    def _keras_fit(self, RM, X, y, params):
+        if self.RM_type in ('K_ANN', 'K_ANN_Dis'):
+            X, y, params = self._tile_for_keras(X, y, params)
+        return RM.fit(X, y, **params)
+
     def train_RM(self, p_backend='loky', scoring=True):
         """
         Training the models.
@@ -711,9 +754,9 @@ class manage_RM(object):
                     for bsize, epocs in zip(self.train_params["batch_size"], self.train_params["epochs"]):
                         train_params["batch_size"] = bsize
                         train_params["epochs"] = epocs
-                        history = RM.fit(self.X_train, y_train, **train_params)
+                        history = self._keras_fit(RM, self.X_train, y_train, train_params)
             else:
-                history = RM.fit(self.X_train, y_train, **self.train_params)
+                history = self._keras_fit(RM, self.X_train, y_train, self.train_params)
             self.history = [history]
             if scoring:
                 train_score = score(RM, self.X_train, y_train)
