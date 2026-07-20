@@ -195,6 +195,7 @@ class manage_RM(object):
             self.X_train_unscaled = self.X_train
             self.X_test_unscaled = self.X_test
             self.y_train_unscaled = self.y_train
+            self.y_test_unscaled = self.y_test
         self.RMs = None
         self.trained = False
         self._multi_predic = True
@@ -583,9 +584,10 @@ class manage_RM(object):
             self.scale_sets(use_log=self.use_log)
         else:
             self.X_test_unscaled = self.X_test
+            self.y_test_unscaled = self.y_test
         self.discretized = False
         if self.N_y_bins is not None or self.y_vects is not None:
-            self.y_test_ori = self._copy_None(self.y_test)                
+            self.y_test_ori = self._copy_None(self.y_test)
             self.y_test = self._discretize1(self.y_test)
         else:
             self.y_test_ori = self.y_test            
@@ -866,7 +868,7 @@ class manage_RM(object):
                 raise Exception('N_test {} != N_test_y {}'.format(self.N_test, self.N_test_y))
             if self._multi_predic:
                 try:
-                    self.predic_score = score(self.RMs[0], to_predict, self.y_test, axis=0, 
+                    self.predic_score = score(self.RMs[0], self.X_test, self.y_test, axis=0,
                                               predict_functional=self.predict_functional)  #[score(RM, self.X_test, self.y_test) for RM in self.RMs]
                 except:
                     self.predic_score = [np.nan for RM in self.RMs]
@@ -1154,6 +1156,7 @@ class manage_RM(object):
             self.X_train_unscaled = self.X_train
             self.X_test_unscaled = self.X_test
             self.y_train_unscaled = self.y_train
+            self.y_test_unscaled = self.y_test
         self.model_read =True
         
 def score(RM, X, y_true, axis=None, predict_functional=False):
@@ -1167,9 +1170,16 @@ def score(RM, X, y_true, axis=None, predict_functional=False):
         y_pred = RM.predict(X)
     if y_pred.ndim == 2 and y_pred.shape[1] == 1:
             y_pred = np.ravel(y_pred)
+    y_true = np.asarray(y_true)
+    if y_true.ndim == 2 and y_true.shape[1] == 1:
+        y_true = np.ravel(y_true)
+    if axis is None:
+        y_mean = y_true.mean()
+    else:
+        y_mean = y_true.mean(axis=axis, keepdims=True)
     u = ((y_true - y_pred) ** 2).sum(axis=axis)
-    v = ((y_true - y_true.mean()) ** 2).sum(axis=axis)
-    
+    v = ((y_true - y_mean) ** 2).sum(axis=axis)
+
     return 1 - u/v
                 
 #%% __main__

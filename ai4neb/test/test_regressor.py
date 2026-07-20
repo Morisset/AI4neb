@@ -118,6 +118,46 @@ def test_other_sklearn_backends_learn(data, RM_type):
 
 
 # --------------------------------------------------------------------------- #
+# predict(scoring=True) returns a real R^2 for multi_predic backends
+# (regression test: this path used to always yield nan)
+# --------------------------------------------------------------------------- #
+def test_predict_scoring_single_output(data):
+    X1, y1, _, _ = data
+    RM = manage_RM(RM_type='SK_ANN', X_train=X1, y_train=y1,
+                   split_ratio=0.3, scaling=True, random_seed=1)
+    RM.init_RM(hidden_layer_sizes=(30, 30), max_iter=4000,
+               activation='tanh', solver='lbfgs')
+    RM.train_RM()
+    RM.predict(scoring=True)
+    s = np.asarray(RM.predic_score)
+    assert s.ndim == 0                      # a scalar for a single output
+    assert np.isfinite(s)
+    assert s > 0.8
+    # matches an independent R^2 on the stored predictions
+    assert float(s) == pytest.approx(r2(RM.y_test, RM.pred), abs=1e-6)
+
+
+def test_predict_scoring_multi_output(data):
+    _, _, X2, y2 = data
+    RM = manage_RM(RM_type='SK_ANN', X_train=X2, y_train=y2,
+                   split_ratio=0.3, scaling=True, random_seed=1)
+    RM.init_RM(hidden_layer_sizes=(30, 30), max_iter=4000,
+               activation='tanh', solver='lbfgs')
+    RM.train_RM()
+    RM.predict(scoring=True)
+    s = np.asarray(RM.predic_score)
+    assert s.shape == (RM.N_out,)           # one score per output
+    assert np.isfinite(s).all()
+    # each entry is the per-output R^2
+    pred = np.asarray(RM.pred)
+    yt = np.asarray(RM.y_test)
+    for j in range(RM.N_out):
+        u = ((yt[:, j] - pred[:, j]) ** 2).sum()
+        v = ((yt[:, j] - yt[:, j].mean()) ** 2).sum()
+        assert float(s[j]) == pytest.approx(1 - u / v, abs=1e-6)
+
+
+# --------------------------------------------------------------------------- #
 # Discretisation + reduce_by
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("reduce_by", ['mean', 'mean_norm', 'max'])
@@ -163,6 +203,28 @@ def test_save_load_roundtrip_sklearn(data, tmp_path):
     RM2.predict()
     pred_after = np.asarray(RM2.pred).ravel()
     np.testing.assert_allclose(pred_before, pred_after, rtol=0, atol=0)
+
+
+def test_save_test_roundtrip_unscaled(data, tmp_path):
+    """save_test=True with scaling=False used to crash (missing y_test_unscaled)."""
+    X1, y1, _, _ = data
+    fn = str(tmp_path / "rm_unscaled")
+    RM = manage_RM(RM_type='SK_ANN', X_train=X1, y_train=y1,
+                   X_test=X1, y_test=y1, scaling=False, random_seed=1)
+    RM.init_RM(hidden_layer_sizes=(20,), max_iter=800)
+    RM.train_RM()
+    RM.predict()
+    pred_before = np.asarray(RM.pred).ravel().copy()
+
+    RM.save_RM(filename=fn, save_train=True, save_test=True)   # must not raise
+
+    RM2 = manage_RM(RM_filename=fn)
+    assert RM2.model_read
+    # the saved (unscaled) test set survives the round-trip
+    assert RM2.X_test is not None and RM2.y_test is not None
+    RM2.predict()
+    np.testing.assert_allclose(pred_before, np.asarray(RM2.pred).ravel(),
+                               rtol=0, atol=0)
 
 
 # --------------------------------------------------------------------------- #
