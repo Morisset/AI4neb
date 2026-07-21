@@ -57,3 +57,6 @@ coverage.xml
 docs/*.ai4neb_*
 docs/*.keras
 
+# CatBoost training artifacts (regenerated on every fit/test run)
+catboost_info/
+

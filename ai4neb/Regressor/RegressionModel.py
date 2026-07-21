@@ -37,9 +37,9 @@ keras_version = '-1'
 try:
     import tensorflow as tf
     from tensorflow.keras.models import Sequential, load_model
-    from tensorflow.keras.layers import Dense, Dropout
+    from tensorflow.keras.layers import Dense, Dropout, Input
     from tensorflow.keras import backend as K
-    from tensorflow.keras import initializers, regularizers
+    from tensorflow.keras import initializers, regularizers, optimizers, callbacks
     from tensorflow.keras import __version__ as keras_version
     TF_OK = True
     keras_access = 'tf.keras'
@@ -47,9 +47,9 @@ except:
     try:
         import tensorflow as tf
         from keras.models import Sequential, load_model
-        from keras.layers import Dense, Dropout
+        from keras.layers import Dense, Dropout, Input
         from keras import backend as K
-        from keras import initializers, regularizers
+        from keras import initializers, regularizers, optimizers, callbacks
         from keras import __version__ as keras_version
         TF_OK = True
         keras_access = 'keras'
@@ -57,9 +57,9 @@ except:
         try:
             import tensorflow as tf
             from tensorflow.python.keras.models import Sequential, load_model
-            from tensorflow.python.keras.layers import Dense, Dropout
+            from tensorflow.python.keras.layers import Dense, Dropout, Input
             from tensorflow.python.keras import backend as K
-            from tensorflow.python.keras import initializers, regularizers
+            from tensorflow.python.keras import initializers, regularizers, optimizers, callbacks
             from tensorflow.python.keras import __version__ as keras_version
             TF_OK = True
             keras_access = 'tf.python.keras'
@@ -195,6 +195,7 @@ class manage_RM(object):
             self.X_train_unscaled = self.X_train
             self.X_test_unscaled = self.X_test
             self.y_train_unscaled = self.y_train
+            self.y_test_unscaled = self.y_test
         self.RMs = None
         self.trained = False
         self._multi_predic = True
@@ -206,6 +207,10 @@ class manage_RM(object):
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
         
     def init_random(self, seed):
+        # numpy scalars (e.g. np.int64 from `4 + np.arange(5)`) must be cast to
+        # native Python types: stdlib random.seed rejects numpy integer types.
+        if seed is not None and hasattr(seed, 'item'):
+            seed = seed.item()
         self.random_seed = seed
         np.random.seed(self.random_seed)
         random.seed(self.random_seed)
@@ -326,6 +331,9 @@ class manage_RM(object):
             bias_initializer = get_kwargs('bias_initializer', 
                                             initializers.glorot_uniform(seed=self.random_seed))
             optimizer = get_kwargs('optimizer', get_kwargs('solver', 'adam'))
+            learning_rate = get_kwargs('learning_rate', get_kwargs('lr', 0.01))
+            if optimizer == 'adam':
+                optimizer = optimizers.Adam(learning_rate=learning_rate)
             epochs = get_kwargs('epochs', 100)
             batch_size = get_kwargs('batch_size', None)
             validation_split = get_kwargs('validation_split', 0.0)
@@ -334,10 +342,11 @@ class manage_RM(object):
             dropout = get_kwargs('dropout', None)
             L1 = get_kwargs('L1', 0.)
             L2 = get_kwargs('L2', 0.)
+            early_stopping = get_kwargs('early_stopping', True)
             tf.compat.v1.random.set_random_seed(random_state)
             model = Sequential()
-            model.add(Dense(hidden_layer_sizes[0], 
-                            input_dim=self.N_in, 
+            model.add(Input(shape=(self.N_in,)))
+            model.add(Dense(hidden_layer_sizes[0],
                             kernel_initializer=kernel_initializer,
                             bias_initializer=bias_initializer,
                             activation=activation,
@@ -350,7 +359,7 @@ class manage_RM(object):
                 else:
                     d1 = dropout
             if d1 != 0.0:
-                model.add(Dropout(d1, seed=random_state, input_shape=(hidden_layer_sizes[0],)))
+                model.add(Dropout(d1, seed=random_state))
             for i_hl, hidden_layer_size in enumerate(hidden_layer_sizes[1:]):
                 model.add(Dense(hidden_layer_size, 
                                 activation=activation, 
@@ -370,9 +379,9 @@ class manage_RM(object):
                                 kernel_initializer=kernel_initializer,
                                 bias_initializer=bias_initializer,
                                 kernel_regularizer=regularizers.l1_l2(l1=L1, l2=L2)))
-                metrics = get_kwargs('metrics', ['mse','mae'])
-                model.compile(loss='mse', 
-                              optimizer=optimizer, 
+                metrics = get_kwargs('metrics', None)
+                model.compile(loss='mse',
+                              optimizer=optimizer,
                               metrics=metrics)
             elif self.RM_type == 'K_ANN_Dis':
                 model.add(Dense(self.N_out, 
@@ -387,10 +396,15 @@ class manage_RM(object):
             if self.verbose:
                 model.summary()
             self.RMs = [model]
-            self.train_params = {'epochs': epochs, 
-                                 'batch_size': batch_size, 
-                                 'verbose': False, 
+            self.train_params = {'epochs': epochs,
+                                 'batch_size': batch_size,
+                                 'verbose': False,
                                  'validation_split': validation_split}
+            if early_stopping:
+                es_kwargs = {} if early_stopping is True else early_stopping
+                es_config = {'monitor': 'loss', 'patience': 100, 'restore_best_weights': True}
+                es_config.update(es_kwargs)
+                self.train_params['callbacks'] = [callbacks.EarlyStopping(**es_config)]
             self._multi_predic = True
         elif self.RM_type == 'KSK_ANN':
             pass
@@ -416,8 +430,8 @@ class manage_RM(object):
             def create_model(hidden_layer_sizes, N_in, activation, random_state,
                              N_out):
                 model = Sequential()
-                model.add(Dense(hidden_layer_sizes[0], 
-                                input_dim=N_in, 
+                model.add(Input(shape=(N_in,)))
+                model.add(Dense(hidden_layer_sizes[0],
                                 activation=activation))
                 for hidden_layer_size in hidden_layer_sizes[1:]:
                     model.add(Dense(hidden_layer_size, 
@@ -530,21 +544,20 @@ class manage_RM(object):
         self.discretized = True
         
     def _discretize1(self, y):
-        
+
         if y is None:
             return None
         new_y = self.min_discret * np.ones((y.shape[0], self.N_y_bins.sum()))
-        
+        cumsum_bins = np.cumsum(self.N_y_bins)
 #        for i in np.arange(self.N_out):
         for i in np.arange(y.shape[1]):
             tt = np.round((y[:,i] - self.minmax[0,i]) / self.deltas[i] * (self.N_y_bins[i] - 1)).astype(int)
-            tt = np.where(tt < 0, 0, tt)
-            tt = np.where(tt > self.N_y_bins[i]-1, self.N_y_bins[i]-1, tt)
+            tt = np.clip(tt, 0, self.N_y_bins[i] - 1)
             if i > 0:
-                tt += np.cumsum(self.N_y_bins)[i-1]
+                tt += cumsum_bins[i-1]
             new_y[(np.arange(y.shape[0]), tt)] = self.max_discret
 #            if self.verbose:
-#                print("Discretizing column {} on {} bins".format(i, self.N_y_bins[i])) 
+#                print("Discretizing column {} on {} bins".format(i, self.N_y_bins[i]))
         return new_y
             
     def __set_train(self, X=None, y=None):
@@ -575,9 +588,10 @@ class manage_RM(object):
             self.scale_sets(use_log=self.use_log)
         else:
             self.X_test_unscaled = self.X_test
+            self.y_test_unscaled = self.y_test
         self.discretized = False
         if self.N_y_bins is not None or self.y_vects is not None:
-            self.y_test_ori = self._copy_None(self.y_test)                
+            self.y_test_ori = self._copy_None(self.y_test)
             self.y_test = self._discretize1(self.y_test)
         else:
             self.y_test_ori = self.y_test            
@@ -682,6 +696,40 @@ class manage_RM(object):
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
 
+    def _tile_for_keras(self, X, y, params):
+        """
+        Tile a small training set k times and divide epochs by k, so that
+        the fixed per-epoch overhead of model.fit is paid epochs/k times
+        instead of epochs times. With shuffle=False and an unchanged
+        batch_size, every tiled repetition reproduces the exact same
+        sequence of batches, so this is mathematically equivalent to plain
+        full training - only the bookkeeping cost changes.
+        """
+        epochs = params.get('epochs', 100)
+        batch_size = params.get('batch_size', None)
+        if params.get('validation_split', 0.0):
+            return X, y, params
+        n_samples = X.shape[0]
+        effective_batch = min(batch_size, n_samples) if batch_size else n_samples
+        steps_per_epoch = int(np.ceil(n_samples / effective_batch))
+        if steps_per_epoch >= 10:
+            return X, y, params
+        k = max(1, min(100, epochs // 20))
+        if k <= 1 or n_samples * k > 1e6:
+            return X, y, params
+        X_rep = np.tile(X, (k, 1))
+        y_rep = np.tile(y, (k, 1) if y.ndim > 1 else k)
+        new_params = dict(params)
+        new_params['epochs'] = max(1, epochs // k)
+        new_params['batch_size'] = effective_batch
+        new_params['shuffle'] = False
+        return X_rep, y_rep, new_params
+
+    def _keras_fit(self, RM, X, y, params):
+        if self.RM_type in ('K_ANN', 'K_ANN_Dis'):
+            X, y, params = self._tile_for_keras(X, y, params)
+        return RM.fit(X, y, **params)
+
     def train_RM(self, p_backend='loky', scoring=True):
         """
         Training the models.
@@ -712,9 +760,9 @@ class manage_RM(object):
                     for bsize, epocs in zip(self.train_params["batch_size"], self.train_params["epochs"]):
                         train_params["batch_size"] = bsize
                         train_params["epochs"] = epocs
-                        history = RM.fit(self.X_train, y_train, **train_params)
+                        history = self._keras_fit(RM, self.X_train, y_train, train_params)
             else:
-                history = RM.fit(self.X_train, y_train, **self.train_params)
+                history = self._keras_fit(RM, self.X_train, y_train, self.train_params)
             self.history = [history]
             if scoring:
                 train_score = score(RM, self.X_train, y_train)
@@ -764,8 +812,8 @@ class manage_RM(object):
 
     def _norm_pred(self):
         self.pred_ori = self._copy_None(self.pred)
-        tmp = self.pred - np.expand_dims(self.pred.min(1), axis=1)
-        self.pred_norm =  tmp / np.expand_dims(tmp.sum(1), axis=1)
+        tmp = self.pred - self.pred.min(1, keepdims=True)
+        self.pred_norm = tmp / tmp.sum(1, keepdims=True)
                 
     def plot_loss(self, ax=None, i_RM=0, **kwargs):
         
@@ -824,7 +872,7 @@ class manage_RM(object):
                 raise Exception('N_test {} != N_test_y {}'.format(self.N_test, self.N_test_y))
             if self._multi_predic:
                 try:
-                    self.predic_score = score(self.RMs[0], to_predict, self.y_test, axis=0, 
+                    self.predic_score = score(self.RMs[0], self.X_test, self.y_test, axis=0,
                                               predict_functional=self.predict_functional)  #[score(RM, self.X_test, self.y_test) for RM in self.RMs]
                 except:
                     self.predic_score = [np.nan for RM in self.RMs]
@@ -858,12 +906,10 @@ class manage_RM(object):
                 self.pred_mean = np.zeros((self.N_test, len(self.N_y_bins)))
                 self.pred_mean_norm = np.zeros((self.N_test, len(self.N_y_bins)))
                 self.pred_max = np.zeros((self.N_test, len(self.N_y_bins)))
+                cumsum_bins = self.N_y_bins.cumsum()
                 for i in np.arange(len(self.N_y_bins)):
-                    if i == 0:
-                        i_inf = 0
-                    else:
-                        i_inf = self.N_y_bins.cumsum()[i-1]
-                    i_sup = self.N_y_bins.cumsum()[i]
+                    i_inf = 0 if i == 0 else cumsum_bins[i-1]
+                    i_sup = cumsum_bins[i]
                     self.pred_mean[:,i] = np.dot(self.pred[:,i_inf:i_sup],self.y_vects[i])
                     self.pred_mean_norm[:,i] = np.dot(self.pred_norm[:,i_inf:i_sup],self.y_vects[i])
                     self.pred_max[:,i] = self.y_vects[i, np.argmax(self.pred_norm[:,i_inf:i_sup], 1)]
@@ -873,7 +919,7 @@ class manage_RM(object):
                 print('Reducing y by mean')
             elif reduce_by == 'mean_norm':
                 self.pred = self.pred_mean_norm
-                print('Reducing y by mean')
+                print('Reducing y by normalized mean')
             elif reduce_by == 'max':
                 self.pred = self.pred_max
                 print('Reducing y by max')
@@ -1088,7 +1134,7 @@ class manage_RM(object):
             try:
                 self.RMs = []
                 for i in np.arange(self.N_out)+1:
-                    self.RMs.append(xgb.XGBRegressor())
+                    self.RMs.append(catboost.CatBoostRegressor())
                     self.RMs[i-1].load_model('{}.ai4neb_catb{}'.format(filename, i))
                     if self.verbose:
                         print('RM loaded from {}.ai4neb_catb{}'.format(filename, i))
@@ -1114,6 +1160,7 @@ class manage_RM(object):
             self.X_train_unscaled = self.X_train
             self.X_test_unscaled = self.X_test
             self.y_train_unscaled = self.y_train
+            self.y_test_unscaled = self.y_test
         self.model_read =True
         
 def score(RM, X, y_true, axis=None, predict_functional=False):
@@ -1127,9 +1174,16 @@ def score(RM, X, y_true, axis=None, predict_functional=False):
         y_pred = RM.predict(X)
     if y_pred.ndim == 2 and y_pred.shape[1] == 1:
             y_pred = np.ravel(y_pred)
+    y_true = np.asarray(y_true)
+    if y_true.ndim == 2 and y_true.shape[1] == 1:
+        y_true = np.ravel(y_true)
+    if axis is None:
+        y_mean = y_true.mean()
+    else:
+        y_mean = y_true.mean(axis=axis, keepdims=True)
     u = ((y_true - y_pred) ** 2).sum(axis=axis)
-    v = ((y_true - y_true.mean()) ** 2).sum(axis=axis)
-    
+    v = ((y_true - y_mean) ** 2).sum(axis=axis)
+
     return 1 - u/v
                 
 #%% __main__
