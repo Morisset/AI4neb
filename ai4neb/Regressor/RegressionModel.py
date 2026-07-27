@@ -92,6 +92,14 @@ except:
     scikeras_OK = False
             
 RM_version = "0.17"
+
+class _LoadedHistory:
+    """Lightweight stand-in for a keras History object: exposes `.history`
+    (the dict of per-epoch metric lists) so plot_loss works on a reloaded
+    model. save_RM/load_RM store this dict in a companion .ai4neb_khist file."""
+    def __init__(self, history_dict):
+        self.history = history_dict
+
 #%% Main class
 class manage_RM(object):
     """
@@ -396,10 +404,16 @@ class manage_RM(object):
             if self.verbose:
                 model.summary()
             self.RMs = [model]
+            validation_data = get_kwargs('validation_data', None)
             self.train_params = {'epochs': epochs,
                                  'batch_size': batch_size,
                                  'verbose': False,
                                  'validation_split': validation_split}
+            if validation_data is not None:
+                if validation_split:
+                    raise ValueError("validation_data and validation_split are exclusive; "
+                                     "validation_split also disables _tile_for_keras.")
+                self.train_params['validation_data'] = self._scale_val_data(*validation_data)
             if early_stopping:
                 es_kwargs = {} if early_stopping is True else early_stopping
                 es_config = {'monitor': 'loss', 'patience': 100, 'restore_best_weights': True}
@@ -695,6 +709,29 @@ class manage_RM(object):
                 
         if self.verbose:
             print('Training set size = {}, Test set size = {}'.format(self.N_train, self.N_test))
+
+    def _scale_val_data(self, X_val, y_val):
+        """
+        Apply to a user-provided validation set the same transformations as the
+        ones scale_sets applies to the training set: log10 (if use_log), scaler,
+        PCA, and scaler_y. Returns (X_val, y_val) ready to be passed to keras'
+        fit(validation_data=...).
+        Called after __init__ has scaled the training set, so self.scaler,
+        self.pca and self.scaler_y are already fit.
+        """
+        X_val = np.asarray(X_val, dtype=float)
+        y_val = np.asarray(y_val, dtype=float)
+        if y_val.ndim == 1:
+            y_val = y_val.reshape(-1, 1)
+        if self.use_log:
+            X_val, y_val = self._log_data(X_val, y_val)
+        if self.scaler is not None:
+            X_val = self.scaler.transform(X_val)
+        if self.pca is not None:
+            X_val = self.pca.transform(X_val)
+        if self.scaling_y and self.scaler_y is not None:
+            y_val = self.scaler_y.transform(y_val)
+        return X_val, y_val
 
     def _tile_for_keras(self, X, y, params):
         """
@@ -994,6 +1031,12 @@ class manage_RM(object):
                     RM.save('{}_{}.keras'.format(filename, i+1), **kwargs)
                     if self.verbose:
                         print('RM save to {}_{}.keras'.format(filename, i+1))
+            history = getattr(self, 'history', None)
+            if history is not None:
+                joblib.dump([h.history for h in history],
+                            '{}.ai4neb_khist'.format(filename))
+                if self.verbose:
+                    print('RM history saved to {}.ai4neb_khist'.format(filename))
 
         elif self.RM_type == 'XGB':
             to_save.append(None)
@@ -1117,6 +1160,11 @@ class manage_RM(object):
                     except:
                         self.model_read = False
                         print('!! ERROR reading {}_1.keras'.format(filename))
+            hist_file = "{}.ai4neb_khist".format(filename)
+            if hist_file in files:
+                self.history = [_LoadedHistory(d) for d in joblib.load(hist_file)]
+                if self.verbose:
+                    print('RM history loaded from {}'.format(hist_file))
 
         elif format_to_read == 'XGB':
             try:

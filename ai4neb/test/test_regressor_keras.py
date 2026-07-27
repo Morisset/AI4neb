@@ -12,6 +12,7 @@ optimizations added from OPTIMIZE_PLAN_2.md:
 
 The whole module is skipped when TensorFlow/Keras is unavailable.
 """
+import os
 import warnings
 
 import numpy as np
@@ -210,3 +211,92 @@ def test_kann_save_load_roundtrip(data, tmp_path):
     RM2.predict()
     np.testing.assert_allclose(pred_before, np.asarray(RM2.pred).ravel(),
                                rtol=1e-5, atol=1e-5)
+
+
+# --------------------------------------------------------------------------- #
+# validation_data support (patch_ai4neb.md Part A) — the validation set is put
+# through the same scaling pipeline as training, and tiling stays active
+# --------------------------------------------------------------------------- #
+def _split_2d(n=400, seed=3):
+    rng = np.random.RandomState(seed)
+    X = rng.uniform(-1.0, 1.0, (n, 3))
+    y = (np.sin(2 * X[:, 0]) + 0.5 * X[:, 1] ** 2 - X[:, 2]).reshape(-1, 1)
+    ntr = int(0.8 * n)
+    return X[:ntr], y[:ntr], X[ntr:], y[ntr:]   # X_fit, y_fit, X_val, y_val
+
+
+def test_kann_validation_data_scaled():
+    X_fit, y_fit, X_val, y_val = _split_2d()
+    RM = manage_RM(RM_type='K_ANN', X_train=X_fit, y_train=y_fit,
+                   scaling=True, random_seed=10)
+    RM.init_RM(hidden_layer_sizes=(16, 16), epochs=2000, activation='relu',
+               validation_data=(X_val, y_val),
+               early_stopping={'monitor': 'val_loss', 'patience': 20,
+                               'restore_best_weights': True})
+    RM.train_RM()
+    h = RM.history[0].history
+    assert 'val_loss' in h                       # validation actually ran
+    assert len(h['loss']) < 2000                 # tiling stayed active
+    # the stored validation X was scaled with the training scaler -> ~N(0, 1)
+    X_val_scaled, _ = RM.train_params['validation_data']
+    assert abs(X_val_scaled.mean()) < 0.2
+    assert abs(X_val_scaled.std() - 1.0) < 0.2
+    # train and val loss end up in the same ballpark (would be decades apart
+    # if the validation set had been left on the raw scale)
+    assert min(h['val_loss']) < 20 * min(h['loss'])
+
+
+def test_kann_validation_data_split_mutually_exclusive():
+    X_fit, y_fit, X_val, y_val = _split_2d()
+    RM = manage_RM(RM_type='K_ANN', X_train=X_fit, y_train=y_fit,
+                   scaling=True, random_seed=10)
+    with pytest.raises(ValueError):
+        RM.init_RM(hidden_layer_sizes=(8,), epochs=50, activation='relu',
+                   validation_data=(X_val, y_val), validation_split=0.1)
+
+
+# --------------------------------------------------------------------------- #
+# Keras training history survives save/load (patch_ai4neb.md Part B) so
+# plot_loss works on a reloaded model
+# --------------------------------------------------------------------------- #
+def test_kann_history_roundtrip(tmp_path):
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    X_fit, y_fit, X_val, y_val = _split_2d()
+    fn = str(tmp_path / "rm_hist")
+    RM = manage_RM(RM_type='K_ANN', X_train=X_fit, y_train=y_fit,
+                   scaling=True, random_seed=10)
+    RM.init_RM(hidden_layer_sizes=(8,), epochs=500, activation='relu',
+               validation_data=(X_val, y_val))
+    RM.train_RM()
+    n_points = len(RM.history[0].history['loss'])
+
+    RM.save_RM(filename=fn)
+    assert os.path.exists(fn + '.ai4neb_khist')   # companion file written
+
+    RM2 = manage_RM(RM_filename=fn)
+    assert hasattr(RM2, 'history')                # history restored
+    assert 'val_loss' in RM2.history[0].history
+    f, ax = plt.subplots()
+    RM2.plot_loss(ax=ax)                          # must not raise
+    assert len(RM2.loss_values) == n_points
+    plt.close(f)
+
+
+def test_kann_load_without_history_is_fine(tmp_path):
+    """A model saved with no training history (e.g. loaded-then-resaved) still
+    loads; self.history is simply absent (backward compatible)."""
+    X, y = make_data()
+    fn = str(tmp_path / "rm_nohist")
+    RM = manage_RM(RM_type='K_ANN', X_train=X, y_train=y,
+                   scaling=True, random_seed=10)
+    RM.init_RM(hidden_layer_sizes=(6,), epochs=200, activation='tanh')
+    RM.train_RM()
+    del RM.history                                # simulate a model with no history
+    RM.save_RM(filename=fn)
+    assert not os.path.exists(fn + '.ai4neb_khist')
+    RM2 = manage_RM(RM_filename=fn)
+    assert RM2.model_read
+    assert not hasattr(RM2, 'history')
